@@ -14,11 +14,17 @@ class Base(DeclarativeBase):
     pass
 
 
+def normalized_database_url() -> str:
+    if settings.database_url.startswith("postgres://"):
+        return settings.database_url.replace("postgres://", "postgresql://", 1)
+    return settings.database_url
+
+
 def ensure_sqlite_database_file() -> None:
-    if not settings.database_url.startswith("sqlite"):
+    if not normalized_database_url().startswith("sqlite"):
         return
 
-    database = make_url(settings.database_url).database
+    database = make_url(normalized_database_url()).database
     if not database or database == ":memory:":
         return
 
@@ -37,8 +43,9 @@ def ensure_sqlite_database_file() -> None:
 
 
 ensure_sqlite_database_file()
-connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-engine = create_engine(settings.database_url, future=True, connect_args=connect_args)
+database_url = normalized_database_url()
+connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
+engine = create_engine(database_url, future=True, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 
@@ -53,7 +60,7 @@ def _convert_seed_value(column, value):
 
 
 def import_seed_sqlite_data() -> None:
-    if settings.database_url.startswith("sqlite"):
+    if database_url.startswith("sqlite"):
         return
 
     repo_root = Path(__file__).resolve().parents[2]
@@ -144,7 +151,7 @@ def import_seed_sqlite_data() -> None:
 
 
 def run_migrations() -> None:
-    if not settings.database_url.startswith("sqlite"):
+    if not database_url.startswith("sqlite"):
         return
 
     with engine.begin() as connection:
