@@ -1,0 +1,26 @@
+services:
+  - type: web_service
+    name: Tumaini Backend
+    env: python
+    branch: main
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: TUMAINI_DATABASE_URL
+        value: sqlite:///./tumaini_school.db
+      - key: TUMAINI_FRONTEND_URL
+        value: https://<your-frontend-service>.onrender.com
+      - key: TUMAINI_SMS_PROVIDER
+        value: console
+      - key: TUMAINI_SMS_SENDER_ID
+        value: Tumaini
+
+  - type: static_site
+    name: Tumaini Frontend
+    env: static
+    branch: main
+    buildCommand: cd frontend && npm ci && npm run build
+    publishPath: frontend/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://<your-backend-service>.onrender.com

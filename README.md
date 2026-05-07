@@ -91,3 +91,28 @@ These remain in the repo as the current-generation tools and migration reference
 3. Migrate academics and teacher assignment workflows into the web portal
 4. Add library circulation and public website content management
 5. Keep only thin desktop shells where workstation-specific access is needed
+
+## Deployment on Render
+
+This repo is ready for Render deployment. Use the included `.render.yaml` manifest or configure the services manually in Render.
+
+### Backend service
+- Service type: Python web service
+- Build command: `pip install -r backend/requirements.txt`
+- Start command: `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`
+- Ensure `TUMAINI_DATABASE_URL` is set to `sqlite:///./tumaini_school.db`
+- Set `TUMAINI_FRONTEND_URL` to the deployed frontend URL, for example `https://<frontend-service>.onrender.com`
+
+### Frontend service
+- Service type: Static Site
+- Build command: `cd frontend && npm ci && npm run build`
+- Publish directory: `frontend/dist`
+- Set `VITE_API_BASE_URL` to the deployed backend URL, for example `https://<backend-service>.onrender.com`
+- Replace the placeholder values in `.render.yaml` with your actual Render service URLs after deployment.
+
+### Local development
+- Use `frontend/.env.example` and `backend/.env.example` as templates for local environment configuration.
+
+### Notes
+- The frontend now uses `VITE_API_BASE_URL` at build time so the deployed app points to your cloud backend.
+- The backend allows the frontend origin from `TUMAINI_FRONTEND_URL` for CORS.
