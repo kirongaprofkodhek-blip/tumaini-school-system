@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api.router import api_router
 from .config import settings
-from .db import Base, engine, run_migrations
+from .db import Base, engine, import_seed_sqlite_data, run_migrations
 from .models import (
     Book,
     BookLoan,
@@ -52,6 +52,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+    import_seed_sqlite_data()
     run_migrations()
 
 

@@ -98,7 +98,7 @@ This repo includes `render.yaml` for a Render Blueprint with:
 
 - `tumaini-backend`: Python/FastAPI web service
 - `tumaini-frontend`: static Vite/React site
-- A 1 GB persistent disk mounted at `/var/data` for the SQLite database
+- `tumaini-db`: free Render Postgres database
 
 ### Deploy with Blueprint
 
@@ -111,15 +111,11 @@ This repo includes `render.yaml` for a Render Blueprint with:
 
 ### Database behavior
 
-The production database path is:
+The free deployment uses Render Postgres instead of SQLite, because Render persistent disks require a paid web service plan.
 
-```text
-sqlite:////var/data/tumaini_school.db
-```
+On first boot, the backend creates the Postgres tables and imports rows from the bundled `tumaini_school.db` if the cloud database is empty. After import, new cloud data is stored in Postgres.
 
-On first boot, the backend copies the bundled `tumaini_school.db` into `/var/data` if no database exists there. After that, Render keeps the live data on the persistent disk across restarts and deploys.
-
-Render persistent disks require a paid web service plan. Do not use the free web-service plan for this SQLite setup, because filesystem changes are not permanent without a disk.
+Render's free Postgres tier is intended for trials and demos. It expires after 30 days and does not include backups. For permanent school records, upgrade the database before the free trial expires.
 
 ### If Render changes the URLs
 
