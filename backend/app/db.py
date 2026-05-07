@@ -1,4 +1,8 @@
+from pathlib import Path
+import shutil
+
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import settings
@@ -8,6 +12,29 @@ class Base(DeclarativeBase):
     pass
 
 
+def ensure_sqlite_database_file() -> None:
+    if not settings.database_url.startswith("sqlite"):
+        return
+
+    database = make_url(settings.database_url).database
+    if not database or database == ":memory:":
+        return
+
+    target_path = Path(database)
+    if not target_path.is_absolute():
+        target_path = Path.cwd() / target_path
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    if target_path.exists() and target_path.stat().st_size > 0:
+        return
+
+    repo_root = Path(__file__).resolve().parents[2]
+    seed_path = repo_root / "tumaini_school.db"
+    if seed_path.exists() and seed_path.stat().st_size > 0:
+        shutil.copy2(seed_path, target_path)
+
+
+ensure_sqlite_database_file()
 connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
 engine = create_engine(settings.database_url, future=True, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)

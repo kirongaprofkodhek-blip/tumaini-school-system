@@ -94,25 +94,40 @@ These remain in the repo as the current-generation tools and migration reference
 
 ## Deployment on Render
 
-This repo is ready for Render deployment. Use the included `.render.yaml` manifest or configure the services manually in Render.
+This repo includes `render.yaml` for a Render Blueprint with:
 
-### Backend service
-- Service type: Python web service
-- Build command: `pip install -r backend/requirements.txt`
-- Start command: `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`
-- Ensure `TUMAINI_DATABASE_URL` is set to `sqlite:///./tumaini_school.db`
-- Set `TUMAINI_FRONTEND_URL` to the deployed frontend URL, for example `https://<frontend-service>.onrender.com`
+- `tumaini-backend`: Python/FastAPI web service
+- `tumaini-frontend`: static Vite/React site
+- A 1 GB persistent disk mounted at `/var/data` for the SQLite database
 
-### Frontend service
-- Service type: Static Site
-- Build command: `cd frontend && npm ci && npm run build`
-- Publish directory: `frontend/dist`
-- Set `VITE_API_BASE_URL` to the deployed backend URL, for example `https://<backend-service>.onrender.com`
-- Replace the placeholder values in `.render.yaml` with your actual Render service URLs after deployment.
+### Deploy with Blueprint
+
+1. Push this repository to GitHub/GitLab/Bitbucket.
+2. In Render, choose **New > Blueprint** and select the repository.
+3. Confirm that Render detects `render.yaml`, then create/sync the Blueprint.
+4. After both services deploy, open:
+   - Backend health check: `https://tumaini-backend.onrender.com/health`
+   - Frontend: `https://tumaini-frontend.onrender.com`
+
+### Database behavior
+
+The production database path is:
+
+```text
+sqlite:////var/data/tumaini_school.db
+```
+
+On first boot, the backend copies the bundled `tumaini_school.db` into `/var/data` if no database exists there. After that, Render keeps the live data on the persistent disk across restarts and deploys.
+
+Render persistent disks require a paid web service plan. Do not use the free web-service plan for this SQLite setup, because filesystem changes are not permanent without a disk.
+
+### If Render changes the URLs
+
+If Render assigns different `onrender.com` URLs, update these environment variables in the Render Dashboard and redeploy:
+
+- Backend service: `TUMAINI_FRONTEND_URL=https://your-frontend-url.onrender.com`
+- Frontend static site: `VITE_API_BASE_URL=https://your-backend-url.onrender.com`
 
 ### Local development
-- Use `frontend/.env.example` and `backend/.env.example` as templates for local environment configuration.
 
-### Notes
-- The frontend now uses `VITE_API_BASE_URL` at build time so the deployed app points to your cloud backend.
-- The backend allows the frontend origin from `TUMAINI_FRONTEND_URL` for CORS.
+Use `frontend/.env.example` and `backend/.env.example` as templates for local environment configuration.
