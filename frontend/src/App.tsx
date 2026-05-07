@@ -230,7 +230,7 @@ type ParentSummary = {
 
 type CsvRow = Record<string, string | number | boolean | null | undefined>;
 
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 const TOKEN_STORAGE_KEY = "tumaini_access_token";
 const ROLE_STORAGE_KEY = "tumaini_staff_role";
 const NAME_STORAGE_KEY = "tumaini_staff_name";
