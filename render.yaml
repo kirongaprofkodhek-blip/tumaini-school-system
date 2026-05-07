@@ -18,6 +18,8 @@ services:
         value: console
       - key: TUMAINI_SMS_SENDER_ID
         value: Tumaini
+      - key: PYTHON_VERSION
+        value: 3.11.9
 
   - type: web
     name: tumaini-frontend
