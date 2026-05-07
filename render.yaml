@@ -13,7 +13,7 @@ services:
           name: tumaini-db
           property: connectionString
       - key: TUMAINI_FRONTEND_URL
-        value: https://tumaini-frontend.onrender.com
+        value: https://tumaini-frontend-pmyn.onrender.com
       - key: TUMAINI_SMS_PROVIDER
         value: console
       - key: TUMAINI_SMS_SENDER_ID
@@ -28,7 +28,7 @@ services:
     staticPublishPath: frontend/dist
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://tumaini-backend.onrender.com
+        value: https://tumaini-backend-vnry.onrender.com
     routes:
       - type: rewrite
         source: /*
