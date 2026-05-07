@@ -230,11 +230,21 @@ type ParentSummary = {
 
 type CsvRow = Record<string, string | number | boolean | null | undefined>;
 
-const DEFAULT_API_BASE_URL =
-  typeof window !== "undefined" && window.location.hostname.endsWith(".onrender.com")
+function resolveApiBaseUrl() {
+  if (typeof window !== "undefined" && window.location.hostname === "tumaini-frontend-pmyn.onrender.com") {
+    return "https://tumaini-backend-vnry.onrender.com";
+  }
+
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+
+  return typeof window !== "undefined" && window.location.hostname.endsWith(".onrender.com")
     ? "https://tumaini-backend-vnry.onrender.com"
     : "http://127.0.0.1:8000";
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, "");
+}
+
+const API_BASE_URL = resolveApiBaseUrl().replace(/\/$/, "");
 const TOKEN_STORAGE_KEY = "tumaini_access_token";
 const ROLE_STORAGE_KEY = "tumaini_staff_role";
 const NAME_STORAGE_KEY = "tumaini_staff_name";
