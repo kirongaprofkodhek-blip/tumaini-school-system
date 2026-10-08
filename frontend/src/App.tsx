@@ -79,6 +79,54 @@ type ClassResponsibility = {
   class_id: number;
 };
 
+type TimetableRoom = {
+  id: number;
+  name: string;
+  room_type: string | null;
+  capacity: number | null;
+};
+
+type TimetablePeriod = {
+  id: number;
+  name: string;
+  start_time: string;
+  end_time: string;
+  sort_order: number;
+  is_break: boolean;
+};
+
+type TimetableSlot = {
+  id: number;
+  day_of_week: string;
+  period_id: number;
+  class_id: number;
+  learning_area_id: number;
+  teacher_user_id: number;
+  room_id: number | null;
+  requirement_id: number | null;
+  is_locked: boolean;
+  notes: string | null;
+};
+
+type TimetableRequirement = {
+  id: number;
+  class_id: number;
+  learning_area_id: number;
+  teacher_user_id: number;
+  periods_per_week: number;
+  max_periods_per_day: number;
+  preferred_room_id: number | null;
+  allow_double_periods: boolean;
+  notes: string | null;
+};
+
+type TimetableCheck = {
+  severity: "error" | "warning" | "info";
+  message: string;
+  requirement_id?: number;
+  slot_id?: number;
+};
+
 type Exam = {
   id: number;
   name: string;
@@ -88,6 +136,7 @@ type Exam = {
   year: number;
   marks_deadline: string | null;
   status: "active" | "paused" | "ended";
+  cbc_formula: string;
   class_id: number;
   learning_area_id: number;
   created_by_user_id: number | null;
@@ -175,6 +224,56 @@ type MeritListResponse = {
   items: MeritItem[];
 };
 
+type ExamAnalysisSubject = {
+  exam_id: number;
+  learning_area_id: number;
+  learning_area_name: string;
+  entered_count: number;
+  missing_count: number;
+  average_marks: number;
+  highest_marks: number;
+  lowest_marks: number;
+  cbc_distribution: Record<string, number>;
+};
+
+type ExamAnalysisLearner = {
+  learner_id: number;
+  admission_no: string;
+  learner_name: string;
+  total_marks: number;
+  average_percent: number;
+  cbc_level: string | null;
+  subject_count: number;
+  missing_count: number;
+  missing_subjects: string[];
+  position: number;
+};
+
+type ExamAnalysisResponse = {
+  exam: {
+    id: number;
+    name: string;
+    exam_type: string;
+    exam_month: string | null;
+    term: string;
+    year: number;
+    cbc_formula: string;
+  };
+  class_id: number;
+  learning_area_id: number | null;
+  summary: {
+    learner_count: number;
+    learning_area_count: number;
+    marks_entered: number;
+    completion_rate: number;
+    class_average: number;
+  };
+  subject_analysis: ExamAnalysisSubject[];
+  learner_analysis: ExamAnalysisLearner[];
+  support_learners: ExamAnalysisLearner[];
+  insights: string[];
+};
+
 type WebsitePage = {
   id: number;
   slug: string;
@@ -248,6 +347,28 @@ const API_BASE_URL = resolveApiBaseUrl().replace(/\/$/, "");
 const TOKEN_STORAGE_KEY = "tumaini_access_token";
 const ROLE_STORAGE_KEY = "tumaini_staff_role";
 const NAME_STORAGE_KEY = "tumaini_staff_name";
+const SESSION_EXPIRES_STORAGE_KEY = "tumaini_session_expires_at";
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+
+function getStoredSessionToken(): string | null {
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  const expiresAt = Number(localStorage.getItem(SESSION_EXPIRES_STORAGE_KEY));
+  if (!token) {
+    return null;
+  }
+  if (!expiresAt || expiresAt <= Date.now()) {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(ROLE_STORAGE_KEY);
+    localStorage.removeItem(NAME_STORAGE_KEY);
+    localStorage.removeItem(SESSION_EXPIRES_STORAGE_KEY);
+    return null;
+  }
+  return token;
+}
+
+function extendStoredSession() {
+  localStorage.setItem(SESSION_EXPIRES_STORAGE_KEY, String(Date.now() + SESSION_TIMEOUT_MS));
+}
 
 const roleCatalog: Array<{ value: UserRole; label: string; detail: string }> = [
   { value: "admin", label: "Admin", detail: "Full setup, users, reporting, messaging, website, and library." },
@@ -333,6 +454,74 @@ const campusHighlights = [
   { value: "1", label: "Connected Platform", detail: "One website, one portal, one shared school database." },
 ];
 
+type EventGalleryItem = {
+  title: string;
+  label: string;
+  imageSrc: string;
+  imageAlt: string;
+  description: string;
+  sourceLabel: string;
+  images: string[];
+};
+
+type PublicSection = "home" | "about" | "journey" | "events" | "system" | "news" | "links" | "contact";
+
+const publicNavItems: Array<{ id: PublicSection; label: string }> = [
+  { id: "home", label: "Home" },
+  { id: "about", label: "About" },
+  { id: "journey", label: "Learning Journey" },
+  { id: "events", label: "Events" },
+  { id: "system", label: "School System" },
+  { id: "news", label: "News" },
+  { id: "links", label: "Quick Links" },
+  { id: "contact", label: "Contact" },
+];
+
+const eventGallery: EventGalleryItem[] = [
+  {
+    title: "Corpus Christi Sunday",
+    label: "Faith and parish life",
+    imageSrc: "/gallery/tumaini-events/corpus-christi-sunday/718043364_1052169840666760_6396057020241100245_n.jpg",
+    imageAlt: "Corpus Christi Sunday procession at Saint Mark Catholic Parish, Ol Moran",
+    description:
+      "A parish celebration showing Tumaini learners and the wider Saint Mark community gathered around worship, service, and Catholic identity.",
+    sourceLabel: "8 photos",
+    images: [
+      "/gallery/tumaini-events/corpus-christi-sunday/718868142_1052166307333780_8771027307289728130_n.jpg",
+      "/gallery/tumaini-events/corpus-christi-sunday/719160171_1052166097333801_4964797322641801337_n.jpg",
+      "/gallery/tumaini-events/corpus-christi-sunday/720721747_1052166967333714_3924575298038616347_n.jpg",
+    ],
+  },
+  {
+    title: "Red Cross Event",
+    label: "Safety and community care",
+    imageSrc: "/gallery/tumaini-events/redcross-event/IMG_8997.JPG",
+    imageAlt: "Tumaini Academy learners during a Red Cross community event",
+    description:
+      "Learners taking part in a community safety and awareness event, building responsibility, confidence, teamwork, and care for others.",
+    sourceLabel: "30 photos",
+    images: [
+      "/gallery/tumaini-events/redcross-event/IMG_9010.JPG",
+      "/gallery/tumaini-events/redcross-event/IMG_9282.JPG",
+      "/gallery/tumaini-events/redcross-event/IMG_9650.JPG",
+    ],
+  },
+  {
+    title: "Scout Activities",
+    label: "Outdoor formation",
+    imageSrc: "/gallery/tumaini-events/scout/716431209_1050418017508609_428552511529268468_n.jpg",
+    imageAlt: "Tumaini Academy learners during scout activities",
+    description:
+      "Scouting moments that show discipline, outdoor learning, leadership, teamwork, and the learner formation that happens beyond class.",
+    sourceLabel: "13 photos",
+    images: [
+      "/gallery/tumaini-events/scout/716776064_1050418084175269_5403310222480233720_n.jpg",
+      "/gallery/tumaini-events/scout/716809811_1050418804175197_4203930849758203528_n.jpg",
+      "/gallery/tumaini-events/scout/719613099_1050418254175252_5442658235695391120_n.jpg",
+    ],
+  },
+];
+
 const fallbackNews = [
   {
     category: "School System",
@@ -361,7 +550,7 @@ const quickLinkGroups = [
   },
   {
     title: "School Links",
-    links: ["Admissions", "Learning Journey", "Boarding Life", "Library Services"],
+    links: ["Admissions", "Learning Journey", "Events Gallery", "Boarding Life", "Library Services"],
   },
   {
     title: "Resources",
@@ -396,6 +585,46 @@ function isTeacherRole(role: UserRole | null | undefined): boolean {
   const normalizedRole = normalizeUserRole(role);
   return normalizedRole === "teacher";
 }
+
+function EventPhoto({ event, className = "" }: { event: EventGalleryItem; className?: string }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const showImage = event.imageSrc && !imageFailed;
+
+  return (
+    <div className={`event-photo-frame ${className}`}>
+      {showImage ? (
+        <img src={event.imageSrc} alt={event.imageAlt} onError={() => setImageFailed(true)} />
+      ) : (
+        <div className="event-photo-placeholder" aria-label={`${event.title} photo awaiting approval`}>
+          <span>{event.label}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CBC_FORMULA_OPTIONS = [
+  {
+    id: "standard",
+    label: "Standard CBC",
+    detail: "EE 80+, ME 65+, AE 50+, BE below 50",
+    formula: "80:EE,65:ME,50:AE,0:BE",
+  },
+  {
+    id: "strict",
+    label: "Strict CBC",
+    detail: "EE 85+, ME 70+, AE 50+, BE below 50",
+    formula: "85:EE,70:ME,50:AE,0:BE",
+  },
+  {
+    id: "supportive",
+    label: "Supportive CBC",
+    detail: "EE 75+, ME 60+, AE 40+, BE below 40",
+    formula: "75:EE,60:ME,40:AE,0:BE",
+  },
+];
+
+const SCHOOL_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 function buildQuery(params: Record<string, string | number | null | undefined>): string {
   const query = new URLSearchParams();
@@ -494,6 +723,7 @@ function getModulesForRole(role: UserRole | null, teacherHasClassResponsibility 
         { id: "reporting", label: "Reporting" },
         { id: "academics", label: "Academics" },
         { id: "exams", label: "Exams" },
+        { id: "timetable", label: "Timetable" },
         { id: "messaging", label: "Messaging" },
         { id: "website", label: "Website" },
       ];
@@ -501,6 +731,7 @@ function getModulesForRole(role: UserRole | null, teacherHasClassResponsibility 
       return [
         { id: "academics", label: "Academics" },
         { id: "exams", label: "Exams" },
+        { id: "timetable", label: "Timetable" },
       ];
     case "teacher":
       return teacherHasClassResponsibility
@@ -509,8 +740,12 @@ function getModulesForRole(role: UserRole | null, teacherHasClassResponsibility 
             { id: "messaging", label: "Messaging" },
             { id: "academics", label: "Academics" },
             { id: "exams", label: "Exams" },
+            { id: "timetable", label: "Timetable" },
           ]
-        : [{ id: "exams", label: "Exams" }];
+        : [
+            { id: "exams", label: "Exams" },
+            { id: "timetable", label: "Timetable" },
+          ];
     case "class_teacher":
     case "subject_teacher":
       return [{ id: "exams", label: "Exams" }];
@@ -782,12 +1017,13 @@ function App() {
   const [password, setPassword] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [portalNotice, setPortalNotice] = useState<PortalNotice | null>(null);
-  const [sessionToken, setSessionToken] = useState<string | null>(() => localStorage.getItem(TOKEN_STORAGE_KEY));
+  const [sessionToken, setSessionToken] = useState<string | null>(() => getStoredSessionToken());
   const [loggedInUser, setLoggedInUser] = useState<CurrentUser | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState("setup");
+  const [activePublicSection, setActivePublicSection] = useState<PublicSection>("home");
 
   const [publicPages, setPublicPages] = useState<WebsitePage[]>([]);
   const [users, setUsers] = useState<DirectoryUser[]>([]);
@@ -800,6 +1036,11 @@ function App() {
   const [recentArrivals, setRecentArrivals] = useState<RecentArrival[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [markEntries, setMarkEntries] = useState<MarkEntry[]>([]);
+  const [timetableRooms, setTimetableRooms] = useState<TimetableRoom[]>([]);
+  const [timetablePeriods, setTimetablePeriods] = useState<TimetablePeriod[]>([]);
+  const [timetableRequirements, setTimetableRequirements] = useState<TimetableRequirement[]>([]);
+  const [timetableSlots, setTimetableSlots] = useState<TimetableSlot[]>([]);
+  const [timetableChecks, setTimetableChecks] = useState<TimetableCheck[]>([]);
   const [templates, setTemplates] = useState<SmsTemplate[]>([]);
   const [deliveryLogs, setDeliveryLogs] = useState<SmsDeliveryLog[]>([]);
   const [managedPages, setManagedPages] = useState<WebsitePage[]>([]);
@@ -807,6 +1048,7 @@ function App() {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [overdueLoans, setOverdueLoans] = useState<Loan[]>([]);
   const [meritList, setMeritList] = useState<MeritListResponse | null>(null);
+  const [examAnalysis, setExamAnalysis] = useState<ExamAnalysisResponse | null>(null);
   const [parentSummary, setParentSummary] = useState<ParentSummary | null>(null);
   const [reportingView, setReportingView] = useState<"report" | "register">("report");
   const [editingClassId, setEditingClassId] = useState<number | null>(null);
@@ -841,7 +1083,6 @@ function App() {
     name: "",
     minMarks: "0",
     maxMarks: "100",
-    cbcFormula: "80:EE,65:ME,50:AE,0:BE",
   });
   const [assignmentForm, setAssignmentForm] = useState({
     teacherUserId: "",
@@ -882,6 +1123,7 @@ function App() {
     learningAreaScope: "specific" as "all" | "specific",
     learningAreaNames: [] as string[],
     maxMarks: "100",
+    cbcFormulaOption: "standard",
     marksDeadline: "",
   });
   const [examFilters, setExamFilters] = useState({
@@ -912,6 +1154,41 @@ function App() {
     examId: "",
     learningAreaId: "",
   });
+  const [timetableRoomForm, setTimetableRoomForm] = useState({
+    name: "",
+    roomType: "",
+    capacity: "",
+  });
+  const [timetablePeriodForm, setTimetablePeriodForm] = useState({
+    name: "",
+    startTime: "",
+    endTime: "",
+    sortOrder: "1",
+    isBreak: false,
+  });
+  const [timetableRequirementForm, setTimetableRequirementForm] = useState({
+    classId: "",
+    learningAreaId: "",
+    teacherUserId: "",
+    periodsPerWeek: "5",
+    maxPeriodsPerDay: "1",
+    preferredRoomId: "",
+    allowDoublePeriods: false,
+    notes: "",
+  });
+  const [timetableSlotForm, setTimetableSlotForm] = useState({
+    dayOfWeek: "Monday",
+    periodId: "",
+    classId: "",
+    learningAreaId: "",
+    teacherUserId: "",
+    roomId: "",
+    requirementId: "",
+    isLocked: false,
+    notes: "",
+  });
+  const [timetableClassFilter, setTimetableClassFilter] = useState("");
+  const [timetableTeacherFilter, setTimetableTeacherFilter] = useState("");
   const [templateForm, setTemplateForm] = useState({
     name: "",
     scope: "admin",
@@ -957,6 +1234,12 @@ function App() {
   const classMap = useMemo(() => new Map(classes.map((item) => [item.id, item])), [classes]);
   const areaMap = useMemo(() => new Map(areas.map((item) => [item.id, item])), [areas]);
   const userMap = useMemo(() => new Map(directory.map((item) => [item.id, item])), [directory]);
+  const timetableRoomMap = useMemo(() => new Map(timetableRooms.map((item) => [item.id, item])), [timetableRooms]);
+  const timetablePeriodMap = useMemo(() => new Map(timetablePeriods.map((item) => [item.id, item])), [timetablePeriods]);
+  const timetableRequirementMap = useMemo(
+    () => new Map(timetableRequirements.map((item) => [item.id, item])),
+    [timetableRequirements],
+  );
   const learnerMap = useMemo(() => new Map(learners.map((item) => [item.id, item])), [learners]);
   const bookMap = useMemo(() => new Map(books.map((item) => [item.id, item])), [books]);
   const selectedArrivalLearner = useMemo(
@@ -999,6 +1282,8 @@ function App() {
     () => getModulesForRole(normalizedLoggedInRole, teacherHasClassResponsibility),
     [normalizedLoggedInRole, teacherHasClassResponsibility],
   );
+  const activeModuleLabel = roleModules.find((module) => module.id === activeModule)?.label ?? "Dashboard";
+  const portalUserInitial = loggedInUser?.full_name.trim().charAt(0).toUpperCase() || "T";
   const dashboardTheme = useMemo(
     () => getDashboardTheme(normalizedLoggedInRole, teacherHasClassResponsibility),
     [normalizedLoggedInRole, teacherHasClassResponsibility],
@@ -1029,6 +1314,8 @@ function App() {
     normalizedLoggedInRole === "admin" ||
     normalizedLoggedInRole === "head_teacher" ||
     isTeacherRole(normalizedLoggedInRole);
+  const canManageTimetable = normalizedLoggedInRole === "admin" || normalizedLoggedInRole === "head_teacher";
+  const canViewTimetable = canManageAcademics;
   const canManageMessaging = normalizedLoggedInRole === "admin" || teacherHasClassResponsibility;
   const canManageBroadcasts = normalizedLoggedInRole === "admin";
   const canManageLibrary = normalizedLoggedInRole === "librarian";
@@ -1038,6 +1325,86 @@ function App() {
     () => directory.filter((person) => normalizeUserRole(person.role) === "teacher"),
     [directory],
   );
+  const timetableLearningAreaOptions = useMemo(
+    () =>
+      timetableSlotForm.classId
+        ? areas
+            .filter((area) => area.class_id === Number(timetableSlotForm.classId))
+            .sort((first, second) => first.name.localeCompare(second.name))
+        : [],
+    [areas, timetableSlotForm.classId],
+  );
+  const timetableTeacherOptions = useMemo(() => {
+    if (!timetableSlotForm.classId || !timetableSlotForm.learningAreaId) {
+      return teacherOptions;
+    }
+    const assignedTeacherIds = new Set(
+      assignments
+        .filter(
+          (assignment) =>
+            assignment.class_id === Number(timetableSlotForm.classId) &&
+            assignment.learning_area_id === Number(timetableSlotForm.learningAreaId),
+        )
+        .map((assignment) => assignment.teacher_user_id),
+    );
+    return teacherOptions.filter((teacher) => assignedTeacherIds.has(teacher.id));
+  }, [assignments, teacherOptions, timetableSlotForm.classId, timetableSlotForm.learningAreaId]);
+  const timetableRequirementLearningAreaOptions = useMemo(
+    () =>
+      timetableRequirementForm.classId
+        ? areas
+            .filter((area) => area.class_id === Number(timetableRequirementForm.classId))
+            .sort((first, second) => first.name.localeCompare(second.name))
+        : [],
+    [areas, timetableRequirementForm.classId],
+  );
+  const timetableRequirementTeacherOptions = useMemo(() => {
+    if (!timetableRequirementForm.classId || !timetableRequirementForm.learningAreaId) {
+      return teacherOptions;
+    }
+    const assignedTeacherIds = new Set(
+      assignments
+        .filter(
+          (assignment) =>
+            assignment.class_id === Number(timetableRequirementForm.classId) &&
+            assignment.learning_area_id === Number(timetableRequirementForm.learningAreaId),
+        )
+        .map((assignment) => assignment.teacher_user_id),
+    );
+    return teacherOptions.filter((teacher) => assignedTeacherIds.has(teacher.id));
+  }, [assignments, teacherOptions, timetableRequirementForm.classId, timetableRequirementForm.learningAreaId]);
+  const requirementCards = useMemo(
+    () =>
+      timetableRequirements.map((requirement) => {
+        const placedCount = timetableSlots.filter((slot) => slot.requirement_id === requirement.id).length;
+        return {
+          requirement,
+          placedCount,
+          remainingCount: Math.max(requirement.periods_per_week - placedCount, 0),
+        };
+      }),
+    [timetableRequirements, timetableSlots],
+  );
+  const filteredTimetableSlots = useMemo(
+    () =>
+      timetableSlots.filter((slot) => {
+        const matchesClass = !timetableClassFilter || slot.class_id === Number(timetableClassFilter);
+        const matchesTeacher =
+          normalizedLoggedInRole === "teacher"
+            ? true
+            : !timetableTeacherFilter || slot.teacher_user_id === Number(timetableTeacherFilter);
+        return matchesClass && matchesTeacher;
+      }),
+    [normalizedLoggedInRole, timetableClassFilter, timetableSlots, timetableTeacherFilter],
+  );
+  const timetableSlotsByCell = useMemo(() => {
+    const map = new Map<string, TimetableSlot[]>();
+    filteredTimetableSlots.forEach((slot) => {
+      const key = `${slot.day_of_week}:${slot.period_id}`;
+      map.set(key, [...(map.get(key) ?? []), slot]);
+    });
+    return map;
+  }, [filteredTimetableSlots]);
   const areasForAssignmentClass = useMemo(
     () => (assignmentForm.classId ? areas.filter((item) => item.class_id === Number(assignmentForm.classId)) : areas),
     [assignmentForm.classId, areas],
@@ -1137,6 +1504,10 @@ function App() {
   );
   const filteredExamCycles = useMemo(() => buildExamCycles(filteredExams), [filteredExams]);
   const runningExamCycles = useMemo(() => buildExamCycles(runningExamOptions), [runningExamOptions]);
+  const generatedExamCbcFormula = useMemo(
+    () => CBC_FORMULA_OPTIONS.find((option) => option.id === examForm.cbcFormulaOption)?.formula ?? CBC_FORMULA_OPTIONS[0].formula,
+    [examForm.cbcFormulaOption],
+  );
   const markExamSource = normalizedLoggedInRole === "admin" || normalizedLoggedInRole === "head_teacher" ? markableExamOptions : runningExamOptions;
   const markExamCycles = useMemo(() => buildExamCycles(markExamSource), [markExamSource]);
   const selectedMarkCycle = useMemo(
@@ -1280,6 +1651,9 @@ function App() {
     setRecentArrivals([]);
     setExams([]);
     setMarkEntries([]);
+    setTimetableRooms([]);
+    setTimetablePeriods([]);
+    setTimetableSlots([]);
     setTemplates([]);
     setDeliveryLogs([]);
     setManagedPages([]);
@@ -1287,6 +1661,7 @@ function App() {
     setLoans([]);
     setOverdueLoans([]);
     setMeritList(null);
+    setExamAnalysis(null);
     setLiveMeritList(null);
     setParentSummary(null);
   }
@@ -1295,6 +1670,7 @@ function App() {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     localStorage.removeItem(ROLE_STORAGE_KEY);
     localStorage.removeItem(NAME_STORAGE_KEY);
+    localStorage.removeItem(SESSION_EXPIRES_STORAGE_KEY);
     setSessionToken(null);
     setLoggedInUser(null);
     setIsLoginOpen(false);
@@ -1321,8 +1697,15 @@ function App() {
   }
 
   async function restoreSession(token: string) {
+    const expiresAt = Number(localStorage.getItem(SESSION_EXPIRES_STORAGE_KEY));
+    if (!expiresAt || expiresAt <= Date.now()) {
+      clearSession();
+      setSessionChecked(true);
+      return;
+    }
     try {
       const me = await apiRequest<CurrentUser>("/api/auth/me", {}, token);
+      extendStoredSession();
       setLoggedInUser({ ...me, role: normalizeUserRole(me.role) ?? me.role });
     } catch {
       clearSession();
@@ -1343,6 +1726,7 @@ function App() {
     const roleCanManageSetup = normalizedRole === "admin";
     const roleCanManageAcademics =
       normalizedRole === "admin" || normalizedRole === "head_teacher" || isTeacherRole(normalizedRole);
+    const roleCanViewTimetable = roleCanManageAcademics;
     const roleMayNeedTeacherMessaging = normalizedRole === "admin" || isTeacherRole(normalizedRole);
     const roleCanManageLibrary = normalizedRole === "librarian";
     const roleCanManageWebsite = normalizedRole === "admin";
@@ -1361,6 +1745,20 @@ function App() {
       normalizedRole === "parent" ? Promise.resolve([] as Exam[]) : safeLoad<Exam[]>("/api/academics/exams", [], token);
     const commonMarks =
       roleCanManageAcademics ? safeLoad<MarkEntry[]>("/api/academics/marks", [], token) : Promise.resolve([] as MarkEntry[]);
+    const timetableRoomsPromise =
+      roleCanViewTimetable ? safeLoad<TimetableRoom[]>("/api/timetable/rooms", [], token) : Promise.resolve([] as TimetableRoom[]);
+    const timetablePeriodsPromise =
+      roleCanViewTimetable ? safeLoad<TimetablePeriod[]>("/api/timetable/periods", [], token) : Promise.resolve([] as TimetablePeriod[]);
+    const timetableRequirementsPromise =
+      roleCanViewTimetable
+        ? safeLoad<TimetableRequirement[]>("/api/timetable/requirements", [], token)
+        : Promise.resolve([] as TimetableRequirement[]);
+    const timetableSlotsPromise =
+      roleCanViewTimetable ? safeLoad<TimetableSlot[]>("/api/timetable/slots", [], token) : Promise.resolve([] as TimetableSlot[]);
+    const timetableChecksPromise =
+      normalizedRole === "admin" || normalizedRole === "head_teacher"
+        ? safeLoad<{ checks: TimetableCheck[] }>("/api/timetable/check", { checks: [] }, token)
+        : Promise.resolve({ checks: [] as TimetableCheck[] });
 
     const usersPromise = roleCanManageSetup ? safeLoad<DirectoryUser[]>("/api/auth/users", [], token) : Promise.resolve([] as DirectoryUser[]);
     const assignmentsPromise = roleCanManageAcademics
@@ -1391,6 +1789,11 @@ function App() {
       loadedArrivals,
       loadedExams,
       loadedMarks,
+      loadedTimetableRooms,
+      loadedTimetablePeriods,
+      loadedTimetableRequirements,
+      loadedTimetableSlots,
+      loadedTimetableChecks,
       loadedUsers,
       loadedAssignments,
       loadedClassResponsibilities,
@@ -1408,6 +1811,11 @@ function App() {
       commonArrivals,
       commonExams,
       commonMarks,
+      timetableRoomsPromise,
+      timetablePeriodsPromise,
+      timetableRequirementsPromise,
+      timetableSlotsPromise,
+      timetableChecksPromise,
       usersPromise,
       assignmentsPromise,
       classResponsibilitiesPromise,
@@ -1426,6 +1834,11 @@ function App() {
     setRecentArrivals(loadedArrivals);
     setExams(loadedExams);
     setMarkEntries(loadedMarks);
+    setTimetableRooms(loadedTimetableRooms);
+    setTimetablePeriods(loadedTimetablePeriods);
+    setTimetableRequirements(loadedTimetableRequirements);
+    setTimetableSlots(loadedTimetableSlots);
+    setTimetableChecks(loadedTimetableChecks.checks);
     setUsers(loadedUsers.map((item) => ({ ...item, role: normalizeUserRole(item.role) ?? item.role })));
     setAssignments(loadedAssignments);
     setClassResponsibilities(loadedClassResponsibilities);
@@ -1490,6 +1903,63 @@ function App() {
     void loadPortalData(loggedInUser.role, sessionToken);
   }, [loggedInUser, sessionToken, teacherHasClassResponsibility]);
 
+  useEffect(() => {
+    if (!sessionToken || !loggedInUser) {
+      return;
+    }
+
+    let activityThrottle: number | null = null;
+    let timeoutId: number | null = null;
+
+    const scheduleLogout = () => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+      const expiresAt = Number(localStorage.getItem(SESSION_EXPIRES_STORAGE_KEY));
+      const delay = expiresAt - Date.now();
+      if (!expiresAt || delay <= 0) {
+        clearSession();
+        setFeedback("Your session expired after 30 minutes. Please sign in again.");
+        return;
+      }
+      timeoutId = window.setTimeout(() => {
+        clearSession();
+        setFeedback("Your session expired after 30 minutes. Please sign in again.");
+      }, delay);
+    };
+
+    const handleActivity = () => {
+      if (activityThrottle) {
+        return;
+      }
+      activityThrottle = window.setTimeout(() => {
+        activityThrottle = null;
+      }, 1000);
+      extendStoredSession();
+      scheduleLogout();
+    };
+
+    extendStoredSession();
+    scheduleLogout();
+    window.addEventListener("click", handleActivity);
+    window.addEventListener("keydown", handleActivity);
+    window.addEventListener("scroll", handleActivity, { passive: true });
+    window.addEventListener("touchstart", handleActivity, { passive: true });
+
+    return () => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+      if (activityThrottle) {
+        window.clearTimeout(activityThrottle);
+      }
+      window.removeEventListener("click", handleActivity);
+      window.removeEventListener("keydown", handleActivity);
+      window.removeEventListener("scroll", handleActivity);
+      window.removeEventListener("touchstart", handleActivity);
+    };
+  }, [sessionToken, loggedInUser]);
+
   const submitLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFeedback(null);
@@ -1521,6 +1991,7 @@ function App() {
       localStorage.setItem(TOKEN_STORAGE_KEY, loginPayload.access_token);
       localStorage.setItem(ROLE_STORAGE_KEY, normalizedMe.role);
       localStorage.setItem(NAME_STORAGE_KEY, normalizedMe.full_name);
+      extendStoredSession();
       setSessionToken(loginPayload.access_token);
       setLoggedInUser(normalizedMe);
       setFeedback(`Signed in successfully as ${normalizedMe.full_name}.`);
@@ -1610,7 +2081,6 @@ function App() {
                 name: areaForm.name,
                 min_marks: Number(areaForm.minMarks),
                 max_marks: Number(areaForm.maxMarks),
-                cbc_formula: areaForm.cbcFormula,
               }),
             }),
           ),
@@ -1623,7 +2093,6 @@ function App() {
         name: "",
         minMarks: "0",
         maxMarks: "100",
-        cbcFormula: "80:EE,65:ME,50:AE,0:BE",
       });
       await refreshPortalData();
     }
@@ -1955,7 +2424,7 @@ function App() {
             learning_area_name: examForm.learningAreaNames[0] ?? examForm.learningAreaName,
             max_marks: Number(examForm.maxMarks),
             min_marks: 0,
-            cbc_formula: "80:EE,65:ME,50:AE,0:BE",
+            cbc_formula: generatedExamCbcFormula,
           }),
         }),
       `${examForm.name} was created for ${examClassIds.length} class${examClassIds.length === 1 ? "" : "es"}.`,
@@ -1973,6 +2442,7 @@ function App() {
         learningAreaScope: "specific",
         learningAreaNames: [],
         maxMarks: "100",
+        cbcFormulaOption: "standard",
         marksDeadline: "",
       });
       await refreshPortalData();
@@ -2158,6 +2628,208 @@ function App() {
       );
     }
   };
+
+  const submitTimetableRoom = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const result = await runAction(
+      "create-timetable-room",
+      () =>
+        apiRequest("/api/timetable/rooms", {
+          method: "POST",
+          body: JSON.stringify({
+            name: timetableRoomForm.name,
+            room_type: timetableRoomForm.roomType || null,
+            capacity: timetableRoomForm.capacity ? Number(timetableRoomForm.capacity) : null,
+          }),
+        }),
+      `${timetableRoomForm.name} was added to timetable rooms.`,
+    );
+    if (result) {
+      setTimetableRoomForm({ name: "", roomType: "", capacity: "" });
+      await refreshPortalData();
+    }
+  };
+
+  const submitTimetablePeriod = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const result = await runAction(
+      "create-timetable-period",
+      () =>
+        apiRequest("/api/timetable/periods", {
+          method: "POST",
+          body: JSON.stringify({
+            name: timetablePeriodForm.name,
+            start_time: timetablePeriodForm.startTime,
+            end_time: timetablePeriodForm.endTime,
+            sort_order: Number(timetablePeriodForm.sortOrder),
+            is_break: timetablePeriodForm.isBreak,
+          }),
+        }),
+      `${timetablePeriodForm.name} was added to the school day.`,
+    );
+    if (result) {
+      setTimetablePeriodForm({ name: "", startTime: "", endTime: "", sortOrder: "1", isBreak: false });
+      await refreshPortalData();
+    }
+  };
+
+  const submitTimetableRequirement = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const result = await runAction(
+      "create-timetable-requirement",
+      () =>
+        apiRequest("/api/timetable/requirements", {
+          method: "POST",
+          body: JSON.stringify({
+            class_id: Number(timetableRequirementForm.classId),
+            learning_area_id: Number(timetableRequirementForm.learningAreaId),
+            teacher_user_id: Number(timetableRequirementForm.teacherUserId),
+            periods_per_week: Number(timetableRequirementForm.periodsPerWeek),
+            max_periods_per_day: Number(timetableRequirementForm.maxPeriodsPerDay),
+            preferred_room_id: timetableRequirementForm.preferredRoomId ? Number(timetableRequirementForm.preferredRoomId) : null,
+            allow_double_periods: timetableRequirementForm.allowDoublePeriods,
+            notes: timetableRequirementForm.notes || null,
+          }),
+        }),
+      "Weekly lesson requirement created.",
+    );
+    if (result) {
+      setTimetableRequirementForm({
+        classId: "",
+        learningAreaId: "",
+        teacherUserId: "",
+        periodsPerWeek: "5",
+        maxPeriodsPerDay: "1",
+        preferredRoomId: "",
+        allowDoublePeriods: false,
+        notes: "",
+      });
+      await refreshPortalData();
+    }
+  };
+
+  async function deleteTimetableRequirement(requirementId: number) {
+    const result = await runAction(
+      `delete-timetable-requirement-${requirementId}`,
+      () => apiRequest(`/api/timetable/requirements/${requirementId}`, { method: "DELETE" }),
+      "Lesson requirement removed.",
+    );
+    if (result) {
+      await refreshPortalData();
+    }
+  }
+
+  async function runTimetableCheck() {
+    const result = await runAction<{ checks: TimetableCheck[] }>(
+      "check-timetable",
+      () => apiRequest("/api/timetable/check"),
+      "Timetable checked.",
+    );
+    if (result) {
+      setTimetableChecks(result.checks);
+    }
+  }
+
+  async function generateTimetableCards() {
+    const result = await runAction<{ checks: TimetableCheck[]; created_count: number }>(
+      "generate-timetable",
+      () => apiRequest("/api/timetable/generate", { method: "POST" }),
+      "Timetable cards generated.",
+    );
+    if (result) {
+      setTimetableChecks(result.checks);
+      await refreshPortalData();
+    }
+  }
+
+  const submitTimetableSlot = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const result = await runAction(
+      "create-timetable-slot",
+      () =>
+        apiRequest("/api/timetable/slots", {
+          method: "POST",
+          body: JSON.stringify({
+            day_of_week: timetableSlotForm.dayOfWeek,
+            period_id: Number(timetableSlotForm.periodId),
+            class_id: Number(timetableSlotForm.classId),
+            learning_area_id: Number(timetableSlotForm.learningAreaId),
+            teacher_user_id: Number(timetableSlotForm.teacherUserId),
+            room_id: timetableSlotForm.roomId ? Number(timetableSlotForm.roomId) : null,
+            requirement_id: timetableSlotForm.requirementId ? Number(timetableSlotForm.requirementId) : null,
+            is_locked: timetableSlotForm.isLocked,
+            notes: timetableSlotForm.notes || null,
+          }),
+        }),
+      "Lesson added to the timetable.",
+    );
+    if (result) {
+      setTimetableSlotForm((current) => ({
+        ...current,
+        learningAreaId: "",
+        teacherUserId: "",
+        roomId: "",
+        requirementId: "",
+        isLocked: false,
+        notes: "",
+      }));
+      await refreshPortalData();
+    }
+  };
+
+  async function deleteTimetableSlot(slotId: number) {
+    const result = await runAction(
+      `delete-timetable-slot-${slotId}`,
+      () => apiRequest(`/api/timetable/slots/${slotId}`, { method: "DELETE" }),
+      "Lesson removed from timetable.",
+    );
+    if (result) {
+      await refreshPortalData();
+    }
+  }
+
+  const handleExamAnalysis = async () => {
+    if (!meritForm.classId || !meritForm.examId) {
+      setPortalNotice({ kind: "error", text: "Pick a class and exam first." });
+      return;
+    }
+    const result = await runAction<ExamAnalysisResponse>(
+      "exam-analysis",
+      () =>
+        apiRequest("/api/academics/exam-analysis", {
+          method: "POST",
+          body: JSON.stringify({
+            class_id: Number(meritForm.classId),
+            exam_id: Number(meritForm.examId),
+            learning_area_id: meritForm.learningAreaId ? Number(meritForm.learningAreaId) : null,
+          }),
+        }),
+      "CBC exam analysis generated.",
+    );
+    if (result) {
+      setExamAnalysis(result);
+    }
+  };
+
+  function downloadExamAnalysisCsv() {
+    if (!examAnalysis) {
+      return;
+    }
+    downloadCsv(
+      "cbc-exam-analysis.csv",
+      examAnalysis.learner_analysis.map((item) => ({
+        position: item.position,
+        admission_no: item.admission_no,
+        learner_name: item.learner_name,
+        total_marks: item.total_marks,
+        average_percent: item.average_percent,
+        cbc_level: item.cbc_level ?? "",
+        subject_count: item.subject_count,
+        missing_count: item.missing_count,
+        missing_subjects: item.missing_subjects.join("; "),
+      })),
+    );
+  }
 
   useEffect(() => {
     if (!selectedMarkExam || !canViewSelectedClassMerit) {
@@ -2357,8 +3029,81 @@ function App() {
     openLoginScreen();
   };
 
+  const selectedMarkHeader = selectedMarkExam
+    ? `${selectedMarkCycle?.name ?? selectedMarkExam.name} - ${
+        classMap.get(selectedMarkExam.class_id)?.name ?? `Class ${selectedMarkExam.class_id}`
+      } - ${areaMap.get(selectedMarkExam.learning_area_id)?.name ?? `Learning area ${selectedMarkExam.learning_area_id}`}`
+    : "";
+
+  if (loggedInUser && activeModule === "exams" && selectedMarkExam && examPageView === "enter") {
+    return (
+      <div className="site-shell">
+        <main className="portal-shell marks-only-page">
+          <section className="portal-section marks-only-section">
+            <div className="portal-section-heading">
+              <div>
+                <p className="section-kicker">Marks entry</p>
+                <h2>{selectedMarkHeader}</h2>
+                <p>Enter learner marks for this class and learning area only.</p>
+              </div>
+              <button className="ghost-button" type="button" onClick={() => setExamPageView("overview")}>
+                Back to exams
+              </button>
+            </div>
+            <article className="module-card">
+              <label className="field">
+                <span>Search learner</span>
+                <input
+                  value={markLearnerSearch}
+                  onChange={(event) => setMarkLearnerSearch(event.target.value)}
+                  placeholder="Type learner name or admission number"
+                />
+              </label>
+              {learnersForMarkEntry.length ? (
+                <div className="learner-mark-grid">
+                  {learnersForMarkEntry.map((learner) => (
+                    <div className="summary-block learner-mark-row" key={learner.id}>
+                      <div>
+                        <p>
+                          <strong>{learner.full_name}</strong>
+                        </p>
+                        <p className="helper-copy">{learner.admission_no}</p>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={learnerMarkDrafts[String(learner.id)] ?? ""}
+                        onChange={(event) =>
+                          setLearnerMarkDrafts((current) => ({
+                            ...current,
+                            [String(learner.id)]: event.target.value,
+                          }))
+                        }
+                        placeholder="Marks"
+                      />
+                      <button
+                        className="primary-button"
+                        type="button"
+                        disabled={actionBusy === `save-marks-${learner.id}`}
+                        onClick={() => void saveLearnerMarks(learner.id, learnerMarkDrafts[String(learner.id)] ?? "")}
+                      >
+                        {actionBusy === `save-marks-${learner.id}` ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState text="You have entered marks for all learners in this class and learning area." />
+              )}
+            </article>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
   return (
-    <div className="site-shell">
+    <div className={`site-shell ${loggedInUser ? "portal-mode" : ""}`}>
       <div className="glow glow-green" />
       <div className="glow glow-gold" />
       <div className="glow glow-blue" />
@@ -2380,6 +3125,9 @@ function App() {
           onClick={() => {
             if (showLoginScreen) {
               closeLoginScreen();
+            }
+            if (!loggedInUser) {
+              setActivePublicSection("home");
             }
           }}
         >
@@ -2412,12 +3160,16 @@ function App() {
           </div>
         ) : (
           <nav className="primary-nav" aria-label="Main navigation">
-            <a href="#about">About</a>
-            <a href="#journey">Learning Journey</a>
-            <a href="#system">School System</a>
-            <a href="#news">News</a>
-            <a href="#links">Quick Links</a>
-            <a href="#contact">Contact</a>
+            {publicNavItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={activePublicSection === item.id ? "active" : ""}
+                onClick={() => setActivePublicSection(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
           </nav>
         )}
 
@@ -2528,77 +3280,73 @@ function App() {
 
       {loggedInUser ? (
         <section className={`portal-shell ${dashboardTheme.shellClassName}`} id="portal">
-          <div className="portal-hero">
-            <div className="portal-hero-copy">
-              <p className="section-kicker">{dashboardTheme.kicker}</p>
-              <h2>{dashboardTheme.title}</h2>
-              <p className="portal-detail">{dashboardTheme.detail}</p>
+          <aside className="portal-sidebar" aria-label="Staff portal navigation">
+            <div className="portal-sidebar-brand">
+              <img src="/Tumaini logo.jpeg" alt="Tumaini Academy logo" />
+              <div>
+                <p className="portal-sidebar-kicker">Tumaini Academy</p>
+                <span className="portal-role-name">{formatRoleLabel(loggedInUser.role)}</span>
+              </div>
             </div>
-            <div className="portal-hero-panel">
-              <p className="portal-hero-panel-label">{dashboardTheme.spotlightLabel}</p>
-              <h3>{dashboardTheme.spotlightTitle}</h3>
-              <p>{dashboardTheme.spotlightDetail}</p>
-              {roleModules.length ? (
-                <div className="dashboard-mini-pills">
-                  {roleModules.map((module) => (
-                    <button
-                      key={module.id}
-                      type="button"
-                      className={module.id === activeModule ? "dashboard-mini-pill active" : "dashboard-mini-pill"}
-                      onClick={() => scrollToModule(module.id)}
-                    >
-                      {module.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            <div className="portal-actions">
-              {roleModules.length ? (
-                <button className="primary-button" type="button" onClick={() => scrollToModule(activeModule)}>
-                  Open work area
-                </button>
-              ) : null}
-              <button className="ghost-button" type="button" onClick={clearSession}>
-                Log out
-              </button>
-            </div>
-          </div>
 
-          {dashboardTheme.lanes.length ? (
-            <div className="dashboard-lanes">
-              {dashboardTheme.lanes.map((lane, index) => (
-                <button
-                  key={lane.title}
-                  className={roleModules[index]?.id === activeModule ? "dashboard-lane-card active" : "dashboard-lane-card"}
-                  type="button"
-                  onClick={() => roleModules[index] && scrollToModule(roleModules[index].id)}
-                >
-                  <p className="dashboard-lane-label">{lane.label}</p>
-                  <h3>{lane.title}</h3>
-                  <p>{lane.detail}</p>
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          {roleModules.length > 1 ? (
-            <div className="portal-nav">
+            <p className="portal-menu-label">Menu</p>
+            <nav className="portal-side-nav">
               {roleModules.map((module) => (
                 <button
                   key={module.id}
                   type="button"
-                  className={module.id === activeModule ? "portal-nav-chip active" : "portal-nav-chip"}
+                  className={module.id === activeModule ? "portal-side-link active" : "portal-side-link"}
                   onClick={() => scrollToModule(module.id)}
                 >
-                  {module.label}
+                  <span className="portal-side-icon" aria-hidden="true">
+                    {module.label.slice(0, 1)}
+                  </span>
+                  <span>{module.label}</span>
                 </button>
               ))}
-            </div>
-          ) : null}
+            </nav>
 
-          {portalNotice ? <p className={`notice ${portalNotice.kind}`}>{portalNotice.text}</p> : null}
-          {portalLoading ? <p className="helper-copy">Refreshing portal data...</p> : null}
+            <div className="portal-sidebar-footer">
+              <button className="portal-side-link portal-logout" type="button" onClick={clearSession}>
+                <span className="portal-side-icon" aria-hidden="true">
+                  L
+                </span>
+                <span>Logout</span>
+              </button>
+              <p>Copyright 2026 Tumaini Academy</p>
+            </div>
+          </aside>
+
+          <main className="portal-workspace">
+            <header className="portal-workspace-topbar">
+              <div className="portal-topbar-title">
+                <p className="portal-sidebar-kicker">{dashboardTheme.kicker}</p>
+                <h1>{activeModuleLabel}</h1>
+              </div>
+              <div className="portal-topbar-actions">
+                <div className="portal-context-pill">
+                  <span>{dashboardTheme.title}</span>
+                  <span className="portal-context-value">{activeModuleLabel}</span>
+                </div>
+                <div className="portal-account-pill">
+                  <span>
+                    <span className="portal-account-name">{loggedInUser.full_name}</span>
+                    {formatRoleLabel(loggedInUser.role)}
+                  </span>
+                  <span className="portal-account-avatar">{portalUserInitial}</span>
+                </div>
+              </div>
+            </header>
+
+            <div className="portal-workspace-body">
+              <div className="portal-app-summary">
+                <p className="portal-hero-panel-label">{dashboardTheme.spotlightLabel}</p>
+                <h2>{dashboardTheme.spotlightTitle}</h2>
+                <p>{dashboardTheme.spotlightDetail}</p>
+              </div>
+
+              {portalNotice ? <p className={`notice ${portalNotice.kind}`}>{portalNotice.text}</p> : null}
+              {portalLoading ? <p className="helper-copy">Refreshing portal data...</p> : null}
 
           {canManageSetup && activeModule === "setup" ? (
             <PortalSection
@@ -2750,13 +3498,6 @@ function App() {
                       />
                     </label>
                   </div>
-                  <label className="field">
-                    <span>CBC formula</span>
-                    <input
-                      value={areaForm.cbcFormula}
-                      onChange={(event) => setAreaForm((current) => ({ ...current, cbcFormula: event.target.value }))}
-                    />
-                  </label>
                   <div className="field">
                     <span>Classes doing this learning area</span>
                     {classes.length ? (
@@ -2795,7 +3536,6 @@ function App() {
                           <th>Learning area</th>
                           <th>Class doing it</th>
                           <th>Marks</th>
-                          <th>CBC formula</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2806,7 +3546,6 @@ function App() {
                             <td>
                               {area.min_marks} - {area.max_marks}
                             </td>
-                            <td>{area.cbc_formula || "Not set"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -4012,6 +4751,29 @@ function App() {
                         required
                       />
                     </label>
+                    <div className="field">
+                      <span>CBC formula options</span>
+                      <div className="formula-option-grid">
+                        {CBC_FORMULA_OPTIONS.map((option) => (
+                          <label className="check-row formula-option" key={option.id}>
+                            <input
+                              type="radio"
+                              name="cbc-formula-option"
+                              checked={examForm.cbcFormulaOption === option.id}
+                              onChange={() => setExamForm((current) => ({ ...current, cbcFormulaOption: option.id }))}
+                            />
+                            <span>
+                              <strong>{option.label}</strong>
+                              <em>{option.detail}</em>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="generated-formula-row">
+                      <span>Generated CBC formula</span>
+                      <strong>{generatedExamCbcFormula}</strong>
+                    </div>
                     <label className="field">
                       <span>Classes doing this exam</span>
                       <select
@@ -4274,14 +5036,15 @@ function App() {
                     <span>Class</span>
                     <select
                       value={meritForm.classId}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        setExamAnalysis(null);
                         setMeritForm((current) => ({
                           ...current,
                           classId: event.target.value,
                           examId: "",
                           learningAreaId: "",
-                        }))
-                      }
+                        }));
+                      }}
                     >
                       <option value="">Select class</option>
                       {classes.map((classRoom) => (
@@ -4295,7 +5058,10 @@ function App() {
                     <span>Exam</span>
                     <select
                       value={meritForm.examId}
-                      onChange={(event) => setMeritForm((current) => ({ ...current, examId: event.target.value }))}
+                      onChange={(event) => {
+                        setExamAnalysis(null);
+                        setMeritForm((current) => ({ ...current, examId: event.target.value }));
+                      }}
                     >
                       <option value="">Select exam</option>
                       {examsForMeritClass.map((exam) => (
@@ -4309,9 +5075,10 @@ function App() {
                     <span>Learning area for merit list</span>
                     <select
                       value={meritForm.learningAreaId}
-                      onChange={(event) =>
-                        setMeritForm((current) => ({ ...current, learningAreaId: event.target.value }))
-                      }
+                      onChange={(event) => {
+                        setExamAnalysis(null);
+                        setMeritForm((current) => ({ ...current, learningAreaId: event.target.value }));
+                      }}
                     >
                       <option value="">Select learning area</option>
                       {areasForMeritClass.map((area) => (
@@ -4328,9 +5095,119 @@ function App() {
                     <button className="ghost-button" type="button" onClick={() => void handleMeritDownload("subject")}>
                       Download learning area merit list
                     </button>
+                    <button className="ghost-button" type="button" onClick={() => void handleExamAnalysis()}>
+                      Generate CBC analysis
+                    </button>
                   </div>
                 </article>
               </div>
+
+              {examAnalysis ? (
+                <article className="module-card analysis-card">
+                  <div className="section-heading compact-heading">
+                    <p className="section-kicker">CBC exam analysis</p>
+                    <h3>
+                      {examAnalysis.exam.name} - {classMap.get(examAnalysis.class_id)?.name ?? `Class ${examAnalysis.class_id}`}
+                    </h3>
+                  </div>
+                  <div className="analysis-stat-grid">
+                    <div>
+                      <span>Class average</span>
+                      <strong>{examAnalysis.summary.class_average}%</strong>
+                    </div>
+                    <div>
+                      <span>Completion</span>
+                      <strong>{examAnalysis.summary.completion_rate}%</strong>
+                    </div>
+                    <div>
+                      <span>Learning areas</span>
+                      <strong>{examAnalysis.summary.learning_area_count}</strong>
+                    </div>
+                    <div>
+                      <span>Marks entered</span>
+                      <strong>{examAnalysis.summary.marks_entered}</strong>
+                    </div>
+                  </div>
+                  <div className="insight-list">
+                    {examAnalysis.insights.map((insight) => (
+                      <span className="mini-pill" key={insight}>
+                        {insight}
+                      </span>
+                    ))}
+                  </div>
+                  <button className="ghost-button inline-button" type="button" onClick={downloadExamAnalysisCsv}>
+                    Download CBC broadsheet
+                  </button>
+                  <div className="table-wrap">
+                    <table className="portal-table">
+                      <thead>
+                        <tr>
+                          <th>Learning area</th>
+                          <th>Average</th>
+                          <th>High</th>
+                          <th>Low</th>
+                          <th>Missing</th>
+                          <th>CBC levels</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {examAnalysis.subject_analysis.map((subject) => (
+                          <tr key={subject.exam_id}>
+                            <td>{subject.learning_area_name}</td>
+                            <td>{subject.average_marks}</td>
+                            <td>{subject.highest_marks}</td>
+                            <td>{subject.lowest_marks}</td>
+                            <td>{subject.missing_count}</td>
+                            <td>
+                              {Object.entries(subject.cbc_distribution)
+                                .map(([level, count]) => `${level}: ${count}`)
+                                .join(", ")}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {examAnalysis.support_learners.length ? (
+                    <div className="intervention-panel">
+                      <h3>Intervention watchlist</h3>
+                      <div className="pill-list">
+                        {examAnalysis.support_learners.map((learner) => (
+                          <span className="mini-pill" key={learner.learner_id}>
+                            {learner.learner_name} - {learner.cbc_level ?? "Unrated"} - {learner.average_percent}%
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="table-wrap">
+                    <table className="portal-table">
+                      <thead>
+                        <tr>
+                          <th>Pos</th>
+                          <th>Learner</th>
+                          <th>Total</th>
+                          <th>Average</th>
+                          <th>CBC</th>
+                          <th>Missing</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {examAnalysis.learner_analysis.slice(0, 20).map((learner) => (
+                          <tr key={learner.learner_id}>
+                            <td>{learner.position}</td>
+                            <td>{learner.learner_name}</td>
+                            <td>{learner.total_marks}</td>
+                            <td>{learner.average_percent}%</td>
+                            <td>{learner.cbc_level ?? "-"}</td>
+                            <td>{learner.missing_subjects.join(", ") || "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </article>
+              ) : null}
 
               {liveMeritList?.items.length && canViewSelectedClassMerit ? (
                 <article className="module-card">
@@ -4412,6 +5289,554 @@ function App() {
                   </div>
                 </article>
               ) : null}
+            </PortalSection>
+          ) : null}
+
+          {canViewTimetable && activeModule === "timetable" ? (
+            <PortalSection
+              id="portal-timetable"
+              kicker="Timetable"
+              title="School timetable planning"
+              detail="Build the school week from existing classes, teachers, and learning areas while preventing class, teacher, and room clashes."
+            >
+              <div className="portal-grid portal-grid-3">
+                {canManageTimetable ? (
+                  <>
+                    <form className="module-card" onSubmit={submitTimetablePeriod}>
+                      <h3>School periods</h3>
+                      <label className="field">
+                        <span>Period name</span>
+                        <input
+                          value={timetablePeriodForm.name}
+                          onChange={(event) => setTimetablePeriodForm((current) => ({ ...current, name: event.target.value }))}
+                          placeholder="Lesson 1"
+                          required
+                        />
+                      </label>
+                      <div className="two-field-row">
+                        <label className="field">
+                          <span>Start time</span>
+                          <input
+                            type="time"
+                            value={timetablePeriodForm.startTime}
+                            onChange={(event) => setTimetablePeriodForm((current) => ({ ...current, startTime: event.target.value }))}
+                            required
+                          />
+                        </label>
+                        <label className="field">
+                          <span>End time</span>
+                          <input
+                            type="time"
+                            value={timetablePeriodForm.endTime}
+                            onChange={(event) => setTimetablePeriodForm((current) => ({ ...current, endTime: event.target.value }))}
+                            required
+                          />
+                        </label>
+                      </div>
+                      <div className="two-field-row">
+                        <label className="field">
+                          <span>Order</span>
+                          <input
+                            type="number"
+                            value={timetablePeriodForm.sortOrder}
+                            onChange={(event) => setTimetablePeriodForm((current) => ({ ...current, sortOrder: event.target.value }))}
+                            required
+                          />
+                        </label>
+                        <label className="check-row timetable-check-row">
+                          <input
+                            type="checkbox"
+                            checked={timetablePeriodForm.isBreak}
+                            onChange={(event) => setTimetablePeriodForm((current) => ({ ...current, isBreak: event.target.checked }))}
+                          />
+                          <span>Break or lunch</span>
+                        </label>
+                      </div>
+                      <button className="primary-button" type="submit" disabled={actionBusy === "create-timetable-period"}>
+                        {actionBusy === "create-timetable-period" ? "Saving..." : "Add period"}
+                      </button>
+                    </form>
+
+                    <form className="module-card" onSubmit={submitTimetableRoom}>
+                      <h3>Rooms and spaces</h3>
+                      <label className="field">
+                        <span>Room name</span>
+                        <input
+                          value={timetableRoomForm.name}
+                          onChange={(event) => setTimetableRoomForm((current) => ({ ...current, name: event.target.value }))}
+                          placeholder="Grade 7 Room"
+                          required
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Room type</span>
+                        <input
+                          value={timetableRoomForm.roomType}
+                          onChange={(event) => setTimetableRoomForm((current) => ({ ...current, roomType: event.target.value }))}
+                          placeholder="Classroom, Lab, Hall"
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Capacity</span>
+                        <input
+                          type="number"
+                          value={timetableRoomForm.capacity}
+                          onChange={(event) => setTimetableRoomForm((current) => ({ ...current, capacity: event.target.value }))}
+                        />
+                      </label>
+                      <button className="primary-button" type="submit" disabled={actionBusy === "create-timetable-room"}>
+                        {actionBusy === "create-timetable-room" ? "Saving..." : "Add room"}
+                      </button>
+                    </form>
+
+                    <form className="module-card" onSubmit={submitTimetableRequirement}>
+                      <h3>Weekly lesson cards</h3>
+                      <label className="field">
+                        <span>Class</span>
+                        <select
+                          value={timetableRequirementForm.classId}
+                          onChange={(event) =>
+                            setTimetableRequirementForm((current) => ({
+                              ...current,
+                              classId: event.target.value,
+                              learningAreaId: "",
+                              teacherUserId: "",
+                            }))
+                          }
+                          required
+                        >
+                          <option value="">Select class</option>
+                          {classes.map((classRoom) => (
+                            <option key={classRoom.id} value={classRoom.id}>
+                              {classRoom.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>Learning area</span>
+                        <select
+                          value={timetableRequirementForm.learningAreaId}
+                          onChange={(event) =>
+                            setTimetableRequirementForm((current) => ({
+                              ...current,
+                              learningAreaId: event.target.value,
+                              teacherUserId: "",
+                            }))
+                          }
+                          required
+                        >
+                          <option value="">Select learning area</option>
+                          {timetableRequirementLearningAreaOptions.map((area) => (
+                            <option key={area.id} value={area.id}>
+                              {area.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>Teacher</span>
+                        <select
+                          value={timetableRequirementForm.teacherUserId}
+                          onChange={(event) =>
+                            setTimetableRequirementForm((current) => ({ ...current, teacherUserId: event.target.value }))
+                          }
+                          required
+                        >
+                          <option value="">Select assigned teacher</option>
+                          {timetableRequirementTeacherOptions.map((teacher) => (
+                            <option key={teacher.id} value={teacher.id}>
+                              {teacher.full_name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="two-field-row">
+                        <label className="field">
+                          <span>Periods per week</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={timetableRequirementForm.periodsPerWeek}
+                            onChange={(event) =>
+                              setTimetableRequirementForm((current) => ({ ...current, periodsPerWeek: event.target.value }))
+                            }
+                            required
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Max per day</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={timetableRequirementForm.maxPeriodsPerDay}
+                            onChange={(event) =>
+                              setTimetableRequirementForm((current) => ({ ...current, maxPeriodsPerDay: event.target.value }))
+                            }
+                            required
+                          />
+                        </label>
+                      </div>
+                      <label className="field">
+                        <span>Preferred room</span>
+                        <select
+                          value={timetableRequirementForm.preferredRoomId}
+                          onChange={(event) =>
+                            setTimetableRequirementForm((current) => ({ ...current, preferredRoomId: event.target.value }))
+                          }
+                        >
+                          <option value="">Any room</option>
+                          {timetableRooms.map((room) => (
+                            <option key={room.id} value={room.id}>
+                              {room.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="check-row timetable-check-row">
+                        <input
+                          type="checkbox"
+                          checked={timetableRequirementForm.allowDoublePeriods}
+                          onChange={(event) =>
+                            setTimetableRequirementForm((current) => ({ ...current, allowDoublePeriods: event.target.checked }))
+                          }
+                        />
+                        <span>Allow double lessons</span>
+                      </label>
+                      <label className="field">
+                        <span>Notes</span>
+                        <input
+                          value={timetableRequirementForm.notes}
+                          onChange={(event) =>
+                            setTimetableRequirementForm((current) => ({ ...current, notes: event.target.value }))
+                          }
+                          placeholder="Practical, library, lab preference"
+                        />
+                      </label>
+                      <button className="primary-button" type="submit" disabled={actionBusy === "create-timetable-requirement"}>
+                        {actionBusy === "create-timetable-requirement" ? "Saving..." : "Create cards"}
+                      </button>
+                    </form>
+                  </>
+                ) : null}
+
+                {canManageTimetable ? (
+                  <form className="module-card" onSubmit={submitTimetableSlot}>
+                    <h3>Add lesson</h3>
+                    <label className="field">
+                      <span>Lesson card</span>
+                      <select
+                        value={timetableSlotForm.requirementId}
+                        onChange={(event) => {
+                          const requirement = timetableRequirementMap.get(Number(event.target.value));
+                          setTimetableSlotForm((current) => ({
+                            ...current,
+                            requirementId: event.target.value,
+                            classId: requirement ? String(requirement.class_id) : current.classId,
+                            learningAreaId: requirement ? String(requirement.learning_area_id) : current.learningAreaId,
+                            teacherUserId: requirement ? String(requirement.teacher_user_id) : current.teacherUserId,
+                            roomId: requirement?.preferred_room_id ? String(requirement.preferred_room_id) : current.roomId,
+                            notes: requirement?.notes ?? current.notes,
+                          }));
+                        }}
+                      >
+                        <option value="">Manual lesson</option>
+                        {requirementCards.map(({ requirement, remainingCount }) => (
+                          <option key={requirement.id} value={requirement.id}>
+                            {classMap.get(requirement.class_id)?.name ?? "Class"} -{" "}
+                            {areaMap.get(requirement.learning_area_id)?.name ?? "Learning area"} ({remainingCount} left)
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="two-field-row">
+                      <label className="field">
+                        <span>Day</span>
+                        <select
+                          value={timetableSlotForm.dayOfWeek}
+                          onChange={(event) => setTimetableSlotForm((current) => ({ ...current, dayOfWeek: event.target.value }))}
+                        >
+                          {SCHOOL_DAYS.map((day) => (
+                            <option key={day}>{day}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>Period</span>
+                        <select
+                          value={timetableSlotForm.periodId}
+                          onChange={(event) => setTimetableSlotForm((current) => ({ ...current, periodId: event.target.value }))}
+                          required
+                        >
+                          <option value="">Select period</option>
+                          {timetablePeriods
+                            .filter((period) => !period.is_break)
+                            .map((period) => (
+                              <option key={period.id} value={period.id}>
+                                {period.name} ({period.start_time}-{period.end_time})
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                    </div>
+                    <label className="field">
+                      <span>Class</span>
+                      <select
+                        value={timetableSlotForm.classId}
+                        onChange={(event) =>
+                          setTimetableSlotForm((current) => ({
+                            ...current,
+                            classId: event.target.value,
+                            learningAreaId: "",
+                            teacherUserId: "",
+                          }))
+                        }
+                        required
+                      >
+                        <option value="">Select class</option>
+                        {classes.map((classRoom) => (
+                          <option key={classRoom.id} value={classRoom.id}>
+                            {classRoom.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>Learning area</span>
+                      <select
+                        value={timetableSlotForm.learningAreaId}
+                        onChange={(event) =>
+                          setTimetableSlotForm((current) => ({
+                            ...current,
+                            learningAreaId: event.target.value,
+                            teacherUserId: "",
+                          }))
+                        }
+                        required
+                      >
+                        <option value="">Select learning area</option>
+                        {timetableLearningAreaOptions.map((area) => (
+                          <option key={area.id} value={area.id}>
+                            {area.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>Teacher</span>
+                      <select
+                        value={timetableSlotForm.teacherUserId}
+                        onChange={(event) => setTimetableSlotForm((current) => ({ ...current, teacherUserId: event.target.value }))}
+                        required
+                      >
+                        <option value="">Select assigned teacher</option>
+                        {timetableTeacherOptions.map((teacher) => (
+                          <option key={teacher.id} value={teacher.id}>
+                            {teacher.full_name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>Room</span>
+                      <select
+                        value={timetableSlotForm.roomId}
+                        onChange={(event) => setTimetableSlotForm((current) => ({ ...current, roomId: event.target.value }))}
+                      >
+                        <option value="">No fixed room</option>
+                        {timetableRooms.map((room) => (
+                          <option key={room.id} value={room.id}>
+                            {room.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>Notes</span>
+                      <input
+                        value={timetableSlotForm.notes}
+                        onChange={(event) => setTimetableSlotForm((current) => ({ ...current, notes: event.target.value }))}
+                        placeholder="Lab, double lesson, practical"
+                      />
+                    </label>
+                    <label className="check-row timetable-check-row">
+                      <input
+                        type="checkbox"
+                        checked={timetableSlotForm.isLocked}
+                        onChange={(event) => setTimetableSlotForm((current) => ({ ...current, isLocked: event.target.checked }))}
+                      />
+                      <span>Lock card on this position</span>
+                    </label>
+                    <button className="primary-button" type="submit" disabled={actionBusy === "create-timetable-slot"}>
+                      {actionBusy === "create-timetable-slot" ? "Saving..." : "Add lesson"}
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+
+              {canManageTimetable ? (
+                <div className="portal-grid portal-grid-2 timetable-control-grid">
+                  <article className="module-card timetable-card-list">
+                    <div className="section-heading compact-heading">
+                      <p className="section-kicker">Unplaced cards</p>
+                      <h3>Weekly load</h3>
+                    </div>
+                    {requirementCards.length ? (
+                      <div className="timetable-requirement-list">
+                        {requirementCards.map(({ requirement, placedCount, remainingCount }) => (
+                          <div className="timetable-requirement-card" key={requirement.id}>
+                            <strong>{areaMap.get(requirement.learning_area_id)?.name ?? "Learning area"}</strong>
+                            <span>{classMap.get(requirement.class_id)?.name ?? `Class ${requirement.class_id}`}</span>
+                            <span>{userMap.get(requirement.teacher_user_id)?.full_name ?? "Teacher"}</span>
+                            <em>
+                              {placedCount}/{requirement.periods_per_week} placed
+                              {remainingCount ? ` - ${remainingCount} left` : " - complete"}
+                            </em>
+                            {requirement.preferred_room_id ? (
+                              <span>{timetableRoomMap.get(requirement.preferred_room_id)?.name ?? "Preferred room"}</span>
+                            ) : null}
+                            <button
+                              className="text-button"
+                              type="button"
+                              onClick={() => void deleteTimetableRequirement(requirement.id)}
+                              disabled={actionBusy === `delete-timetable-requirement-${requirement.id}`}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState text="Create weekly lesson cards from class, learning area, teacher, and periods per week." />
+                    )}
+                  </article>
+
+                  <article className="module-card timetable-check-panel">
+                    <div className="section-heading compact-heading">
+                      <p className="section-kicker">Checks and generation</p>
+                      <h3>Timetable test</h3>
+                    </div>
+                    <div className="staff-actions">
+                      <button className="primary-button" type="button" onClick={() => void runTimetableCheck()} disabled={actionBusy === "check-timetable"}>
+                        {actionBusy === "check-timetable" ? "Checking..." : "Check timetable"}
+                      </button>
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        onClick={() => void generateTimetableCards()}
+                        disabled={actionBusy === "generate-timetable"}
+                      >
+                        {actionBusy === "generate-timetable" ? "Generating..." : "Generate missing cards"}
+                      </button>
+                    </div>
+                    {timetableChecks.length ? (
+                      <div className="timetable-check-list">
+                        {timetableChecks.map((check, index) => (
+                          <p className={`timetable-check-item ${check.severity}`} key={`${check.message}-${index}`}>
+                            <strong>{check.severity}</strong>
+                            <span>{check.message}</span>
+                          </p>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState text="Run the timetable test to find missing cards and clashes before publishing." />
+                    )}
+                  </article>
+                </div>
+              ) : null}
+
+              <article className="module-card timetable-board-card">
+                <div className="section-heading compact-heading">
+                  <p className="section-kicker">Weekly grid</p>
+                  <h3>Timetable board</h3>
+                </div>
+                <div className="filter-grid timetable-filter-grid">
+                  <label className="field">
+                    <span>Class view</span>
+                    <select value={timetableClassFilter} onChange={(event) => setTimetableClassFilter(event.target.value)}>
+                      <option value="">All classes</option>
+                      {classes.map((classRoom) => (
+                        <option key={classRoom.id} value={classRoom.id}>
+                          {classRoom.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {normalizedLoggedInRole === "admin" || normalizedLoggedInRole === "head_teacher" ? (
+                    <label className="field">
+                      <span>Teacher view</span>
+                      <select value={timetableTeacherFilter} onChange={(event) => setTimetableTeacherFilter(event.target.value)}>
+                        <option value="">All teachers</option>
+                        {teacherOptions.map((teacher) => (
+                          <option key={teacher.id} value={teacher.id}>
+                            {teacher.full_name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                </div>
+                {timetablePeriods.length ? (
+                  <div className="timetable-grid-wrap">
+                    <table className="portal-table timetable-grid">
+                      <thead>
+                        <tr>
+                          <th>Day</th>
+                          {timetablePeriods.map((period) => (
+                            <th key={period.id}>
+                              {period.name}
+                              <span>{period.start_time}-{period.end_time}</span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {SCHOOL_DAYS.map((day) => (
+                          <tr key={day}>
+                            <th>{day}</th>
+                            {timetablePeriods.map((period) => {
+                              const cellSlots = timetableSlotsByCell.get(`${day}:${period.id}`) ?? [];
+                              return (
+                                <td className={period.is_break ? "break-cell" : ""} key={period.id}>
+                                  {period.is_break ? (
+                                    <span className="break-label">Break</span>
+                                  ) : cellSlots.length ? (
+                                    <div className="timetable-cell-stack">
+                                      {cellSlots.map((slot) => (
+                                        <div className="timetable-lesson" key={slot.id}>
+                                          <strong>{areaMap.get(slot.learning_area_id)?.name ?? "Learning area"}</strong>
+                                          <span>{classMap.get(slot.class_id)?.name ?? `Class ${slot.class_id}`}</span>
+                                          <span>{userMap.get(slot.teacher_user_id)?.full_name ?? "Teacher"}</span>
+                                          {slot.room_id ? <em>{timetableRoomMap.get(slot.room_id)?.name ?? "Room"}</em> : null}
+                                          {slot.is_locked ? <em>Locked</em> : null}
+                                          {canManageTimetable ? (
+                                            <button
+                                              className="text-button"
+                                              type="button"
+                                              onClick={() => void deleteTimetableSlot(slot.id)}
+                                              disabled={actionBusy === `delete-timetable-slot-${slot.id}`}
+                                            >
+                                              Remove
+                                            </button>
+                                          ) : null}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="empty-timetable-cell">Free</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <EmptyState text="Create periods first, then place lessons into the weekly timetable." />
+                )}
+              </article>
             </PortalSection>
           ) : null}
 
@@ -5048,27 +6473,33 @@ function App() {
               ) : null}
             </PortalSection>
           ) : null}
+            </div>
+          </main>
         </section>
       ) : null}
 
       {showPublicWebsite ? (
         <>
-          <main>
+          <main className="public-page-shell">
+            {activePublicSection === "home" ? (
             <section className="hero-section" id="home">
               <div className="hero-copy">
-                <p className="section-kicker">One public website, one connected school system</p>
+                <p className="section-kicker">Saint Mark Catholic Parish - Ol Moran</p>
                 <h1>
-                  <span className="brand-inline">TUMAINI ACADEMY</span> now has one home for visitors, parents, staff,
-                  reporting, academics, messaging, and library work.
+                  <span className="brand-inline">TUMAINI ACADEMY</span> is a growing Catholic school shaped by faith,
+                  learning, service, and community life.
                 </h1>
                 <p className="hero-text">
-                  Built for desktop and mobile, the site gives visitors a clear picture of the school while each
-                  internal role works inside a separate role-based dashboard after login.
+                  The website now opens with real school moments, while staff, parents, and administrators enter the
+                  secure portal when they need to work with records, communication, academics, and reporting.
                 </p>
                 <div className="hero-actions">
-                  <a className="primary-button" href="#about">
+                  <button className="primary-button" type="button" onClick={() => setActivePublicSection("about")}>
                     Explore the school
-                  </a>
+                  </button>
+                  <button className="ghost-button" type="button" onClick={() => setActivePublicSection("events")}>
+                    View gallery
+                  </button>
                   <button className="ghost-button" type="button" onClick={openLoginScreen}>
                     Staff Login
                   </button>
@@ -5090,8 +6521,15 @@ function App() {
               </div>
 
               <aside className="hero-aside">
-                <div className="hero-logo-card">
-                  <img src="/Tumaini logo.jpeg" alt="Tumaini Academy logo" />
+                <div className="hero-photo-card">
+                  <EventPhoto event={eventGallery[1]} className="hero-photo-frame" />
+                  <div className="hero-photo-caption">
+                    <p className="section-kicker">School life</p>
+                    <h2>Community events, learner formation, and care beyond the classroom.</h2>
+                  </div>
+                  <div className="hero-logo-badge">
+                    <img src="/Tumaini logo.jpeg" alt="Tumaini Academy logo" />
+                  </div>
                 </div>
                 <div className="hero-note">
                   <p className="section-kicker">Portal status</p>
@@ -5102,23 +6540,9 @@ function App() {
                 </div>
               </aside>
             </section>
+            ) : null}
 
-            <section className="glance-section">
-              <div className="section-heading">
-                <p className="section-kicker">Tumaini At A Glance</p>
-                <h2>A cleaner institutional website structure with clear highlights, updates, and quick access paths.</h2>
-              </div>
-              <div className="glance-grid">
-                {campusHighlights.map((item) => (
-                  <article className="glance-card" key={item.label}>
-                    <p className="section-kicker">{item.label}</p>
-                    <h3>{item.value}</h3>
-                    <p>{item.detail}</p>
-                  </article>
-                ))}
-              </div>
-            </section>
-
+            {activePublicSection === "about" ? (
             <section className="facts-section" id="about">
               <div className="section-heading">
                 <p className="section-kicker">School identity</p>
@@ -5148,7 +6572,9 @@ function App() {
                 </p>
               </div>
             </section>
+            ) : null}
 
+            {activePublicSection === "journey" ? (
             <section className="journey-section" id="journey">
               <div className="section-heading">
                 <p className="section-kicker">Learning journey</p>
@@ -5165,7 +6591,43 @@ function App() {
                 ))}
               </div>
             </section>
+            ) : null}
 
+            {activePublicSection === "events" ? (
+            <section className="events-section" id="events">
+              <div className="events-intro">
+                <div className="section-heading">
+                  <p className="section-kicker">Events Gallery</p>
+                  <h2>School life in pictures, from parish celebrations to community events and outdoor formation.</h2>
+                </div>
+                <p>
+                  These albums use the approved photos stored in <span className="inline-path">assets/Tumaini Images</span>.
+                  They help visitors understand Tumaini as a school shaped by faith, service, discipline, and learner growth.
+                </p>
+              </div>
+
+              <div className="event-gallery-grid">
+                {eventGallery.map((event) => (
+                  <article className="event-card" key={event.title}>
+                    <EventPhoto event={event} />
+                    <div className="event-card-copy">
+                      <p className="contact-label">{event.label}</p>
+                      <h3>{event.title}</h3>
+                      <p>{event.description}</p>
+                      <div className="event-thumbnail-row" aria-label={`${event.title} preview photos`}>
+                        {event.images.map((image) => (
+                          <img src={image} alt="" key={image} loading="lazy" />
+                        ))}
+                      </div>
+                      <span className="event-source">{event.sourceLabel}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+            ) : null}
+
+            {activePublicSection === "system" ? (
             <section className="system-section" id="system">
               <div className="section-heading">
                 <p className="section-kicker">Connected operations</p>
@@ -5194,7 +6656,9 @@ function App() {
                 </div>
               ) : null}
             </section>
+            ) : null}
 
+            {activePublicSection === "news" ? (
             <section className="news-section" id="news">
               <div className="section-heading">
                 <p className="section-kicker">Latest News and Updates</p>
@@ -5212,7 +6676,9 @@ function App() {
                 ))}
               </div>
             </section>
+            ) : null}
 
+            {activePublicSection === "links" ? (
             <section className="links-section" id="links">
               <div className="section-heading">
                 <p className="section-kicker">Quick Links</p>
@@ -5227,8 +6693,23 @@ function App() {
                       {group.links.map((link) => (
                         <a
                           key={link}
-                          href={link === "Staff Login" ? "#staff-login" : "#contact"}
-                          onClick={link === "Staff Login" ? openLoginScreen : undefined}
+                          href="#"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            if (link === "Staff Login") {
+                              openLoginScreen();
+                              return;
+                            }
+                            if (link === "Learning Journey") {
+                              setActivePublicSection("journey");
+                              return;
+                            }
+                            if (link === "Events Gallery") {
+                              setActivePublicSection("events");
+                              return;
+                            }
+                            setActivePublicSection("contact");
+                          }}
                         >
                           {link}
                         </a>
@@ -5238,7 +6719,9 @@ function App() {
                 ))}
               </div>
             </section>
+            ) : null}
 
+            {activePublicSection === "contact" ? (
             <section className="contact-section" id="contact">
               <div className="section-heading">
                 <p className="section-kicker">Contact and location</p>
@@ -5254,72 +6737,12 @@ function App() {
                 ))}
               </div>
             </section>
+            ) : null}
           </main>
 
-          <footer className="footer">
-            <div className="footer-ribbon" />
-            <div className="footer-grid">
-              <div className="footer-column">
-                <p className="brand-name footer-name">TUMAINI ACADEMY</p>
-                <p className="footer-copy">Catholic school under Saint Mark Catholic Parish, Ol Moran.</p>
-                <p className="helper-copy">
-                  A parish-rooted school building one connected home for visitors, parents, teachers, administration, and
-                  the full life of the school.
-                </p>
-                <div className="footer-motto-card">
-                  <p className="contact-label">School Motto</p>
-                  <h3>Furahini katika Tumaini</h3>
-                  <p>Romans 12:12</p>
-                  <blockquote>Rejoicing in hope; patient in tribulation; continuing instant in prayer.</blockquote>
-                </div>
-              </div>
-              <div className="footer-column">
-                <p className="contact-label">Visitor and Portal Links</p>
-                <div className="footer-links">
-                  <a href="#staff-login" onClick={openLoginScreen}>
-                    Staff login
-                  </a>
-                  <a href="#home">Homepage</a>
-                  <a href="#about">About Tumaini</a>
-                  <a href="#news">News updates</a>
-                  <a href="#links">Quick links</a>
-                </div>
-              </div>
-              <div className="footer-column">
-                <p className="contact-label">Office and Contact</p>
-                <div className="footer-links">
-                  <a href="mailto:saintmark@olmoran.org">saintmark@olmoran.org</a>
-                  <a href="#contact">Ol Moran, Laikipia, Kenya</a>
-                  <a href="#contact">+254 720 924 153</a>
-                  <a href="#contact">Office hours: Mon-Fri, 8:00 AM - 5:00 PM</a>
-                </div>
-              </div>
-              <div className="footer-column">
-                <p className="contact-label">Latest News</p>
-                <div className="footer-news-list">
-                  {publicNewsItems.map((item) => (
-                    <a key={item.title} href="#news" className="footer-news-item">
-                      <span>{item.category}</span>
-                      <strong>{item.title}</strong>
-                    </a>
-                  ))}
-                </div>
-              </div>
-              <div className="footer-column footer-action-column">
-                <div className="footer-cta-card">
-                  <p className="contact-label">Digital Campus</p>
-                  <h3>One website. One school system.</h3>
-                  <p>Move from public information into the right staff workspace without repeating the same roles twice.</p>
-                  <button className="staff-trigger footer-button" type="button" onClick={openLoginScreen}>
-                    Staff Login
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="footer-meta">
-              <span>Copyright 2026 Tumaini Academy</span>
-              <span>Furahini katika Tumaini</span>
-            </div>
+          <footer className="compact-footer">
+            <span>Copyright 2026 Tumaini Academy</span>
+            <span>Furahini katika Tumaini</span>
           </footer>
         </>
       ) : null}

@@ -21,6 +21,11 @@ from .models import (
     SmsTemplate,
     StaffProfile,
     TeachingAssignment,
+    TimetableConstraint,
+    TimetablePeriod,
+    TimetableRequirement,
+    TimetableRoom,
+    TimetableSlot,
     User,
     WebsitePage,
 )

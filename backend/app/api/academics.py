@@ -35,6 +35,7 @@ from ..schemas import (
 from ..security import get_current_user, require_roles
 
 router = APIRouter(prefix="/academics", tags=["academics"])
+DEFAULT_CBC_FORMULA = "80:EE,65:ME,50:AE,0:BE"
 
 
 def _compute_level(marks: float, max_marks: float, formula: str) -> str | None:
@@ -55,6 +56,23 @@ def _compute_level(marks: float, max_marks: float, formula: str) -> str | None:
         if percent >= threshold:
             return label
     return None
+
+
+def _build_cbc_distribution(formula: str) -> dict[str, int]:
+    labels = []
+    for item in formula.split(","):
+        if ":" not in item:
+            continue
+        label = item.split(":", 1)[1].strip()
+        if label and label not in labels:
+            labels.append(label)
+    return {label: 0 for label in labels}
+
+
+def _average(values: list[float]) -> float:
+    if not values:
+        return 0
+    return round(sum(values) / len(values), 2)
 
 
 def _teacher_can_access_assignment(
@@ -105,7 +123,6 @@ def create_learning_area(
         name=payload.name.strip(),
         min_marks=payload.min_marks,
         max_marks=payload.max_marks,
-        cbc_formula=payload.cbc_formula.strip(),
     )
     db.add(area)
     db.commit()
@@ -115,7 +132,6 @@ def create_learning_area(
         "id": area.id,
         "name": area.name,
         "max_marks": area.max_marks,
-        "cbc_formula": area.cbc_formula,
     }
 
 
@@ -409,6 +425,7 @@ def create_exam(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.HEAD_TEACHER)),
 ):
+    cbc_formula = payload.cbc_formula.strip() or DEFAULT_CBC_FORMULA
     exam = Exam(
         name=payload.name.strip(),
         exam_type=payload.exam_type.strip(),
@@ -416,6 +433,7 @@ def create_exam(
         term=payload.term.strip(),
         year=payload.year,
         marks_deadline=payload.marks_deadline,
+        cbc_formula=cbc_formula,
         class_id=payload.class_id,
         learning_area_id=payload.learning_area_id,
         created_by_user_id=current_user.id,
@@ -434,6 +452,7 @@ def create_exam_batch(
 ):
     if not payload.class_ids:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Select at least one class.")
+    cbc_formula = payload.cbc_formula.strip() or DEFAULT_CBC_FORMULA
     class_ids = sorted(set(payload.class_ids))
     class_rooms = db.query(ClassRoom).filter(ClassRoom.id.in_(class_ids)).all()
     if len(class_rooms) != len(class_ids):
@@ -469,7 +488,6 @@ def create_exam_batch(
                         name=area_name,
                         min_marks=payload.min_marks,
                         max_marks=payload.max_marks,
-                        cbc_formula=payload.cbc_formula.strip(),
                     )
                     db.add(learning_area)
                     db.flush()
@@ -483,6 +501,7 @@ def create_exam_batch(
                 term=payload.term.strip(),
                 year=payload.year,
                 marks_deadline=payload.marks_deadline,
+                cbc_formula=cbc_formula,
                 class_id=class_room.id,
                 learning_area_id=learning_area.id,
                 created_by_user_id=current_user.id,
@@ -554,6 +573,7 @@ def list_exams(
             "year": exam.year,
             "marks_deadline": exam.marks_deadline.isoformat() if exam.marks_deadline else None,
             "status": exam.status,
+            "cbc_formula": exam.cbc_formula,
             "class_id": exam.class_id,
             "learning_area_id": exam.learning_area_id,
             "created_by_user_id": exam.created_by_user_id,
@@ -644,7 +664,7 @@ def enter_marks(
             detail=f"Marks must be between {learning_area.min_marks} and {learning_area.max_marks}.",
         )
 
-    level = _compute_level(payload.marks, learning_area.max_marks, learning_area.cbc_formula)
+    level = _compute_level(payload.marks, learning_area.max_marks, exam.cbc_formula)
     mark_entry = (
         db.query(MarkEntry)
         .filter(MarkEntry.exam_id == payload.exam_id, MarkEntry.learner_id == payload.learner_id)
@@ -797,4 +817,170 @@ def generate_merit_list(
         "exam_id": payload.exam_id,
         "learning_area_id": payload.learning_area_id,
         "items": ranking,
+    }
+
+
+@router.post("/exam-analysis")
+def generate_exam_analysis(
+    payload: MeritListRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles(
+            UserRole.ADMIN,
+            UserRole.HEAD_TEACHER,
+            UserRole.TEACHER,
+            UserRole.CLASS_TEACHER,
+            UserRole.SUBJECT_TEACHER,
+        )
+    ),
+):
+    exam = db.query(Exam).filter(Exam.id == payload.exam_id, Exam.class_id == payload.class_id).first()
+    if exam is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found for the selected class.")
+
+    if payload.learning_area_id is None:
+        if not _teacher_can_access_assignment(db, current_user, payload.class_id, require_class_teacher=True):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only class teachers or school leaders can view full class exam analysis.",
+            )
+    else:
+        if not _teacher_can_access_assignment(db, current_user, payload.class_id, payload.learning_area_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not assigned to this class and learning area.",
+            )
+
+    learners = db.query(Learner).filter(Learner.class_id == payload.class_id).order_by(Learner.full_name.asc()).all()
+    exam_query = db.query(Exam).filter(
+        Exam.class_id == exam.class_id,
+        Exam.name == exam.name,
+        Exam.exam_type == exam.exam_type,
+        Exam.exam_month == exam.exam_month,
+        Exam.term == exam.term,
+        Exam.year == exam.year,
+    )
+    if payload.learning_area_id is not None:
+        exam_query = exam_query.filter(Exam.learning_area_id == payload.learning_area_id)
+    cycle_exams = exam_query.all()
+    cycle_exam_ids = [item.id for item in cycle_exams]
+    areas_by_id = {area.id: area for area in db.query(LearningArea).filter(LearningArea.id.in_([item.learning_area_id for item in cycle_exams])).all()}
+    marks = db.query(MarkEntry).filter(MarkEntry.exam_id.in_(cycle_exam_ids)).all() if cycle_exam_ids else []
+    marks_by_exam_and_learner = {(mark.exam_id, mark.learner_id): mark for mark in marks}
+    marks_by_learner = defaultdict(list)
+    marks_by_exam = defaultdict(list)
+    for mark in marks:
+        marks_by_learner[mark.learner_id].append(mark)
+        marks_by_exam[mark.exam_id].append(mark)
+
+    subject_analysis = []
+    for subject_exam in cycle_exams:
+        area = areas_by_id.get(subject_exam.learning_area_id)
+        if area is None:
+            continue
+        subject_marks = marks_by_exam.get(subject_exam.id, [])
+        values = [item.marks for item in subject_marks]
+        distribution = _build_cbc_distribution(subject_exam.cbc_formula)
+        for item in subject_marks:
+            level = item.level or _compute_level(item.marks, area.max_marks, subject_exam.cbc_formula) or "Unrated"
+            distribution[level] = distribution.get(level, 0) + 1
+        missing_learners = [
+            {"learner_id": learner.id, "admission_no": learner.admission_no, "learner_name": learner.full_name}
+            for learner in learners
+            if (subject_exam.id, learner.id) not in marks_by_exam_and_learner
+        ]
+        subject_analysis.append(
+            {
+                "exam_id": subject_exam.id,
+                "learning_area_id": area.id,
+                "learning_area_name": area.name,
+                "teacher_user_id": subject_exam.created_by_user_id,
+                "entered_count": len(subject_marks),
+                "missing_count": len(missing_learners),
+                "average_marks": _average(values),
+                "highest_marks": max(values) if values else 0,
+                "lowest_marks": min(values) if values else 0,
+                "cbc_distribution": distribution,
+                "missing_learners": missing_learners,
+            }
+        )
+
+    learner_analysis = []
+    total_possible = sum((areas_by_id.get(item.learning_area_id).max_marks if areas_by_id.get(item.learning_area_id) else 0) for item in cycle_exams)
+    for learner in learners:
+        learner_marks = marks_by_learner.get(learner.id, [])
+        total = round(sum(item.marks for item in learner_marks), 2)
+        percent = round((total / total_possible) * 100, 2) if total_possible else 0
+        missing_subjects = []
+        subject_rows = []
+        for subject_exam in cycle_exams:
+            area = areas_by_id.get(subject_exam.learning_area_id)
+            mark = marks_by_exam_and_learner.get((subject_exam.id, learner.id))
+            if area is None:
+                continue
+            if mark is None:
+                missing_subjects.append(area.name)
+                subject_rows.append({"learning_area_name": area.name, "marks": None, "level": "Missing"})
+            else:
+                subject_rows.append({"learning_area_name": area.name, "marks": mark.marks, "level": mark.level})
+        learner_analysis.append(
+            {
+                "learner_id": learner.id,
+                "admission_no": learner.admission_no,
+                "learner_name": learner.full_name,
+                "total_marks": total,
+                "average_percent": percent,
+                "cbc_level": _compute_level(percent, 100, exam.cbc_formula),
+                "subject_count": len(learner_marks),
+                "missing_count": len(missing_subjects),
+                "missing_subjects": missing_subjects,
+                "subjects": subject_rows,
+            }
+        )
+
+    learner_analysis.sort(key=lambda item: item["total_marks"], reverse=True)
+    for index, item in enumerate(learner_analysis, start=1):
+        item["position"] = index
+
+    completion_rate = round((len(marks) / (len(learners) * len(cycle_exams))) * 100, 2) if learners and cycle_exams else 0
+    class_average = _average([item["average_percent"] for item in learner_analysis if item["subject_count"]])
+    support_learners = [
+        item
+        for item in learner_analysis
+        if item["missing_count"] or item["average_percent"] < 50 or item["cbc_level"] == "BE"
+    ][:10]
+    insights = []
+    if completion_rate < 100:
+        insights.append(f"{round(100 - completion_rate, 2)}% of expected marks are still missing.")
+    weak_subjects = [item for item in subject_analysis if item["entered_count"] and item["average_marks"] < 50]
+    if weak_subjects:
+        insights.append(f"{weak_subjects[0]['learning_area_name']} needs support; its current average is {weak_subjects[0]['average_marks']}.")
+    if support_learners:
+        insights.append(f"{len(support_learners)} learner(s) need intervention because of missing marks or low CBC performance.")
+    if not insights:
+        insights.append("CBC analysis is complete and no urgent intervention signal was detected.")
+
+    return {
+        "exam": {
+            "id": exam.id,
+            "name": exam.name,
+            "exam_type": exam.exam_type,
+            "exam_month": exam.exam_month,
+            "term": exam.term,
+            "year": exam.year,
+            "cbc_formula": exam.cbc_formula,
+        },
+        "class_id": payload.class_id,
+        "learning_area_id": payload.learning_area_id,
+        "summary": {
+            "learner_count": len(learners),
+            "learning_area_count": len(cycle_exams),
+            "marks_entered": len(marks),
+            "completion_rate": completion_rate,
+            "class_average": class_average,
+        },
+        "subject_analysis": subject_analysis,
+        "learner_analysis": learner_analysis,
+        "support_learners": support_learners,
+        "insights": insights,
     }

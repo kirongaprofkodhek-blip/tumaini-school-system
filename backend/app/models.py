@@ -124,6 +124,70 @@ class TeachingAssignment(Base):
     is_class_teacher: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class TimetableRoom(Base):
+    __tablename__ = "timetable_rooms"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    room_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class TimetablePeriod(Base):
+    __tablename__ = "timetable_periods"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(80))
+    start_time: Mapped[str] = mapped_column(String(10))
+    end_time: Mapped[str] = mapped_column(String(10))
+    sort_order: Mapped[int] = mapped_column(Integer, default=1)
+    is_break: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class TimetableRequirement(Base):
+    __tablename__ = "timetable_requirements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    class_id: Mapped[int] = mapped_column(ForeignKey("classes.id"))
+    learning_area_id: Mapped[int] = mapped_column(ForeignKey("learning_areas.id"))
+    teacher_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    periods_per_week: Mapped[int] = mapped_column(Integer, default=1)
+    max_periods_per_day: Mapped[int] = mapped_column(Integer, default=1)
+    preferred_room_id: Mapped[int | None] = mapped_column(ForeignKey("timetable_rooms.id"), nullable=True)
+    allow_double_periods: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class TimetableConstraint(Base):
+    __tablename__ = "timetable_constraints"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    constraint_type: Mapped[str] = mapped_column(String(30))
+    day_of_week: Mapped[str] = mapped_column(String(20))
+    period_id: Mapped[int] = mapped_column(ForeignKey("timetable_periods.id"))
+    teacher_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    class_id: Mapped[int | None] = mapped_column(ForeignKey("classes.id"), nullable=True)
+    room_id: Mapped[int | None] = mapped_column(ForeignKey("timetable_rooms.id"), nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
+class TimetableSlot(Base):
+    __tablename__ = "timetable_slots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    day_of_week: Mapped[str] = mapped_column(String(20))
+    period_id: Mapped[int] = mapped_column(ForeignKey("timetable_periods.id"))
+    class_id: Mapped[int] = mapped_column(ForeignKey("classes.id"))
+    learning_area_id: Mapped[int] = mapped_column(ForeignKey("learning_areas.id"))
+    teacher_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    room_id: Mapped[int | None] = mapped_column(ForeignKey("timetable_rooms.id"), nullable=True)
+    requirement_id: Mapped[int | None] = mapped_column(ForeignKey("timetable_requirements.id"), nullable=True)
+    is_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class ClassResponsibility(Base):
     __tablename__ = "class_responsibilities"
 
@@ -171,6 +235,7 @@ class Exam(Base):
     year: Mapped[int] = mapped_column(Integer)
     marks_deadline: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")
+    cbc_formula: Mapped[str] = mapped_column(Text, default="80:EE,65:ME,50:AE,0:BE")
     class_id: Mapped[int] = mapped_column(ForeignKey("classes.id"))
     learning_area_id: Mapped[int] = mapped_column(ForeignKey("learning_areas.id"))
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)

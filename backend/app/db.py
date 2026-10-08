@@ -76,6 +76,10 @@ def import_seed_sqlite_data() -> None:
         "staff_profiles",
         "learning_areas",
         "teaching_assignments",
+        "timetable_rooms",
+        "timetable_periods",
+        "timetable_requirements",
+        "timetable_slots",
         "class_responsibilities",
         "reporting_records",
         "sms_delivery_logs",
@@ -193,10 +197,21 @@ def run_migrations() -> None:
                 ("exam_month", "exam_month VARCHAR(20)"),
                 ("marks_deadline", "marks_deadline DATETIME"),
                 ("status", "status VARCHAR(20) DEFAULT 'active'"),
+                ("cbc_formula", "cbc_formula TEXT DEFAULT '80:EE,65:ME,50:AE,0:BE'"),
             ]
             for column_name, column_sql in additions:
                 if column_name not in columns:
                     connection.execute(text(f"ALTER TABLE exams ADD COLUMN {column_sql}"))
+
+        if "timetable_slots" in tables:
+            columns = {column["name"] for column in inspector.get_columns("timetable_slots")}
+            additions = [
+                ("requirement_id", "requirement_id INTEGER"),
+                ("is_locked", "is_locked BOOLEAN DEFAULT 0"),
+            ]
+            for column_name, column_sql in additions:
+                if column_name not in columns:
+                    connection.execute(text(f"ALTER TABLE timetable_slots ADD COLUMN {column_sql}"))
 
 
 def get_db():

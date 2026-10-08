@@ -83,7 +83,6 @@ class LearningAreaCreate(BaseModel):
     name: str
     min_marks: float = 0
     max_marks: float = 100
-    cbc_formula: str = ""
 
 
 class ClassCreateRequest(BaseModel):
@@ -122,6 +121,53 @@ class ClassResponsibilityCreate(BaseModel):
     class_id: int
 
 
+class TimetableRoomCreate(BaseModel):
+    name: str
+    room_type: str | None = None
+    capacity: int | None = None
+
+
+class TimetablePeriodCreate(BaseModel):
+    name: str
+    start_time: str
+    end_time: str
+    sort_order: int = 1
+    is_break: bool = False
+
+
+class TimetableSlotCreate(BaseModel):
+    day_of_week: str
+    period_id: int
+    class_id: int
+    learning_area_id: int
+    teacher_user_id: int
+    room_id: int | None = None
+    requirement_id: int | None = None
+    is_locked: bool = False
+    notes: str | None = None
+
+
+class TimetableRequirementCreate(BaseModel):
+    class_id: int
+    learning_area_id: int
+    teacher_user_id: int
+    periods_per_week: int = Field(default=1, ge=1, le=40)
+    max_periods_per_day: int = Field(default=1, ge=1, le=10)
+    preferred_room_id: int | None = None
+    allow_double_periods: bool = False
+    notes: str | None = None
+
+
+class TimetableConstraintCreate(BaseModel):
+    constraint_type: str = "teacher_unavailable"
+    day_of_week: str
+    period_id: int
+    teacher_user_id: int | None = None
+    class_id: int | None = None
+    room_id: int | None = None
+    reason: str | None = None
+
+
 class ExamCreate(BaseModel):
     name: str
     exam_type: str = "Midterm"
@@ -129,6 +175,7 @@ class ExamCreate(BaseModel):
     term: str
     year: int
     marks_deadline: datetime | None = None
+    cbc_formula: str = "80:EE,65:ME,50:AE,0:BE"
     class_id: int
     learning_area_id: int
 
